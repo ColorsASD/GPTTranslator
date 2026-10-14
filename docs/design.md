@@ -2,7 +2,7 @@
 
 Dátum: 2026. október 15.
 
-Alkalmazásverzió: `5.18`.
+Alkalmazásverzió: `6.0`.
 
 ## Jelenlegi felépítés
 
@@ -15,6 +15,7 @@ A program főoldala közvetlenül a beágyazott `chatgpt.com` oldal. A szürke f
 - A külön URL-sor és a program saját bal oldali navigációja eltávolítva. A saját kezdőlap, Chat/Work beviteli sor és ajánlókártyák helyét a ChatGPT oldala veszi át.
 - A beállításoknál balra az általános kártya, jobbra a gyorsbillentyűk és az overlay. A mentés és visszaállítás állandó alsó sávban érhető el.
 - 1200 képpontnál keskenyebb tartalmi panelen a beállítások egy oszlopba rendeződnek és függőlegesen görgethetők.
+- A gyors chat a főfelület natív, semleges szürke paneljét, visszafogott hullámait és ChatGPT ikonját használja. A legfeljebb 860 logikai képpontos panelen felül a cím és a bezárás, középen a lekerekített szövegmező, alul a billentyűs súgó és a világos küldésgomb látható. Keskeny nézetben a küldésgomb külön sorba kerül; kisebb magasságnál a margó és a szövegmező minimuma csökken.
 
 ## Színek és vezérlők
 
@@ -41,6 +42,7 @@ A logó pontos vektoros körvonala a [Simple Icons 11.15.0 OpenAI SVG](https://c
 - A beállítások megőrzik az összes korábbi kapcsolót, gyorsbillentyűt, promptot, időzítést és overlayértéket. Az állapotmező helyi menüjéből a naplómappa megnyitható.
 - A natív felület alatt a böngésző munkamenete aktív marad. A fedett webnézet nem szerepel a billentyűzetes fókuszsorrendben.
 - Az URL-sor eltávolítása csak a megjelenést érinti. A webes eredet ellenőrzése továbbra is korlátozza az automatizálást az engedélyezett ChatGPT oldalra.
+- A gyors chatben az Enter küld, a Ctrl+Enter sortörést szúr be, az Esc és a panelen kívüli kattintás bezárja az ablakot. Küldés közben a szövegmező csak olvasható, a gombok tiltottak; a folyamat és a hibák külön szürke állapotsorban jelennek meg. A háttér egyszeri képernyőkép elmosásával készül, folyamatos háttérrögzítés vagy új animációs időzítő nélkül.
 - A böngészőprofil létrehozása előtt a program regisztrálja a Qt fő egérmutatóját. Ez javítja azt az indulási hibát, amelyben a Chromium `pointer: none` képességet tárolt, és az egérre megjelenő webes feliratok vagy menük precíz mutatóhoz kötött feltételei nem teljesültek.
 
 A Windows címsora és ablakkezelése natív maradt. Windows 11-en a címsor és az ablakkeret a felső sávval azonos `#202020` színt, a címszöveg `#ececec` színt kap; a felső sáv külön elválasztó vonala megszűnt. A címsor színét megjelenítés és fókuszváltás után is újra alkalmazzuk. A beágyazott ChatGPT beszélgetésoldal megjelenését maga a szolgáltatás kezeli; a felső sáv és a beállítások a program saját felületei.
@@ -59,6 +61,7 @@ Az előnézet külön ideiglenes beállítás- és böngészőprofillal, hálóz
 
 ```powershell
 .\.venv313\Scripts\python.exe tools\preview_design.py --output dist\browser-home-preview
+.\.venv313\Scripts\python.exe tools\preview_design.py --quick-chat-only --output dist\quick-chat-preview
 .\.venv313\Scripts\python.exe -m unittest discover -s tests -p test_design_ui.py -v
 .\.venv313\Scripts\python.exe -m unittest discover -s tests -p test_browser_hover.py -v
 .\.venv313\Scripts\python.exe -m unittest discover -s tests -v
@@ -67,6 +70,47 @@ node --test tests\test_automation.cjs
 ```
 
 Az október 14-i, korábbi helyi EXE a `dist/staging/browser-home/Gamer Translator.exe` útvonalon készült, `5.17` alkalmazásverzióval. A build ellenőrzése minden saját Python-modul és a bejelölési SVG bájtpontos egyezését is vizsgálta. Az alábbi, külön dátumozott eredmények az adott köztes buildhez tartoznak; a v5.18 kiadás friss eredményei külön szerepelnek.
+
+## A v6.0 kiadás ellenőrzése
+
+Ellenőrzés dátuma: 2026. október 15.
+
+| Ellenőrzés | Eredmény |
+| --- | --- |
+| Python regressziók | 419/419 sikeres, 101,86 másodperc |
+| JavaScript regressziók | 55/55 sikeres |
+| Csomagolt források és futtatókörnyezet | 42/42 egyezés |
+| Offline EXE-önteszt | 12/12 sikeres, 55 ciklus, 64,743 másodperc, kilépési kód 0 |
+| Csomagolt RapidOCR és Windows OCR | Mindkét motor: `Hello gamer` |
+| Gyors chat helyi Qt interakciói | 9/9 sikeres |
+| Gyors chat tényleges renderje | 8 változat, 5 logikai méretben, 640 × 360-tól 1672 × 900-ig |
+| Rögzített Python-függőségek friss auditja | 48 csomag, 0 ismert sérülékenység |
+
+A kiadási build a `dist/staging/release-v6.0` mappában készült, `6.0` alkalmazásverzióval. Mérete 381 662 004 bájt, SHA-256 értéke: `41a82213eedae3d53fca192508f7fc0e4aeed487bcd3ba639264f5d9b811f66e`.
+
+A saját Python-modulok hash-összehasonlítása alapján a helyben futtatott új gyorschat-build és a végleges kiadási build között kizárólag a verziószám változott. Az Enter, Ctrl+Enter, numerikus Enter, Esc, bezárásgomb, panelen kívüli kattintás, üres szöveg hibája, folyamatvédelem és fókuszbejárás külön helyi Qt-eseményekkel is ellenőrizve lett. A méretpróbák a sorok átfedését és a küldésgomb összenyomódását is kizárják a vizsgált méreteken. A képek saját szintetikus háttérrel készülnek.
+
+Az EXE Authenticode-állapota `NotSigned`. A tartalommentes [kiadásellenőrzési állomány](evidence/release-v6.0-checks.json) a végleges buildhez tartozik; a további külön dátumozott szekciók a korábbi helyi és kiadási ellenőrzések történeti eredményei.
+
+## A gyors chat korábbi helyi átdolgozásának ellenőrzése
+
+Ellenőrzés dátuma: 2026. október 15.
+
+A gyors chat új megjelenése a közzétett v5.18 kiadás után készült helyi módosítás. Az előnézet a tényleges Qt-panelt rajzolja saját szintetikus háttérrel és tesztszöveggel; nem készít asztalfelvételt és nem küld ChatGPT-kérést.
+
+| Ellenőrzés | Eredmény |
+| --- | --- |
+| Meglévő fordítási, felületi és izolációs regressziók | 40/40 sikeres |
+| Helyi Qt billentyű- és egérinterakciók | 9/9 sikeres; küldés, sortörés, bezárás, hiba, folyamatvédelem és fókuszbejárás |
+| Tényleges gyorschat-render | 8 változat, 5 logikai méretben: 1672 × 900, 1080 × 720, 800 × 450, 600 × 600 és 640 × 360 |
+| Elrendezés | Minden vizsgált vezérlő a panelen belül, sorátfedés és összenyomott küldésgomb nélkül |
+| Nagy → kicsi → nagy méretváltás | Hibaüzenettel is sikeres; visszaáll a teljes panel és szövegmező |
+| Kész EXE forrásai, assetjei és futtatókörnyezete | 42/42 egyezés a buildútvonalon és a frissített helyi program helyén |
+| Kész EXE offline öntesztje | 12/12 sikeres, 3 ismételt ciklus; RapidOCR és Windows OCR: `Hello gamer` |
+
+A `--quick-chat-only` kapcsolóval a böngésző megnyitása nélkül újragenerálhatók a `quick-chat-*.png` képek és a `quick-chat-layouts.json` méretjelentés. A `quick-chat-panel.png` a normál panel kivágata. A helyi eredmények a `dist/quick-chat-preview` mappában találhatók.
+
+A friss helyi EXE a `dist/staging/quick-chat-gray/Gamer Translator.exe` útvonalon készült, és azonos fájllal frissült a `dist/staging/rounded-browser/Gamer Translator.exe`, valamint a ténylegesen használt, telepített v5.18 példány. Az utóbbi szabályos kilépés után újraindult; a korábbi EXE külön helyi biztonsági másolatban megmaradt. Mérete 381 663 179 bájt; SHA-256: `c071b6b749dca99e05faae3170eb7af848ae3979c41ae93e139360d5fb471dea`.
 
 ## A v5.18 kiadás ellenőrzése
 

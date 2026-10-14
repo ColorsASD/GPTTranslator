@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QMainWindow,
     QMenu,
@@ -738,6 +739,9 @@ class QuickChatOverlay(QWidget):
     ACTIVATION_GUARD_SECONDS = 0.45
 
     def __init__(self) -> None:
+        from .design_theme import QUICK_CHAT_STYLESHEET, STYLESHEET
+        from .design_widgets import AmbientPanel, IconBadge, icon
+
         super().__init__(
             None,
             Qt.WindowType.Tool
@@ -762,28 +766,51 @@ class QuickChatOverlay(QWidget):
         self.backdrop.setObjectName("quickChatBackdrop")
         self.backdrop.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
-        root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(36, 36, 36, 36)
-        root_layout.setSpacing(0)
-        root_layout.addStretch(1)
+        self.root_layout = QVBoxLayout(self)
+        self.root_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        self.root_layout.setContentsMargins(36, 36, 36, 36)
+        self.root_layout.setSpacing(0)
+        self.root_layout.addStretch(1)
 
-        self.panel = QFrame(self)
+        self.panel = AmbientPanel(self, controller=False)
         self.panel.setObjectName("quickChatPanel")
         self.panel.setMaximumWidth(860)
-        panel_layout = QVBoxLayout(self.panel)
-        panel_layout.setContentsMargins(28, 24, 28, 24)
-        panel_layout.setSpacing(14)
+        self.panel_layout = QVBoxLayout(self.panel)
+        self.panel_layout.setContentsMargins(28, 28, 28, 28)
+        self.panel_layout.setSpacing(20)
+
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(16)
+        header_layout.addWidget(IconBadge("chatgpt", 56))
+
+        title_column = QVBoxLayout()
+        title_column.setContentsMargins(0, 0, 0, 0)
+        title_column.setSpacing(4)
 
         self.title_label = QLabel("Gyors chat")
         self.title_label.setObjectName("quickChatTitle")
 
-        self.hint_label = QLabel("Írd be a fordítandó szöveget. Küldés: Enter, sortörés: Ctrl+Enter, bezárás: Esc")
+        self.hint_label = QLabel("Írd be a szöveget, és küldd el fordításra.")
         self.hint_label.setObjectName("quickChatHint")
         self.hint_label.setWordWrap(True)
+        title_column.addWidget(self.title_label)
+        title_column.addWidget(self.hint_label)
+        header_layout.addLayout(title_column, 1)
+
+        self.cancel_button = QPushButton("Bezárás")
+        self.cancel_button.setIcon(icon("close", 20))
+        self.cancel_button.setAccessibleName("Gyors chat bezárása")
+        self.cancel_button.setToolTip("Bezárás (Esc)")
+        self.cancel_button.clicked.connect(self.hide_overlay)
+        header_layout.addWidget(self.cancel_button, 0, Qt.AlignmentFlag.AlignTop)
 
         self.text_input = QuickChatTextEdit()
         self.text_input.setObjectName("quickChatInput")
-        self.text_input.setPlaceholderText("Ide írd be a szöveget...")
+        self.text_input.setPlaceholderText("Ide írd be a fordítandó szöveget...")
+        self.text_input.setAccessibleName("Fordítandó szöveg")
+        self.text_input.setAccessibleDescription("Enter: küldés. Ctrl+Enter: sortörés. Esc: bezárás.")
         self.text_input.setMinimumHeight(220)
         self.text_input.submit_requested.connect(self._emit_submit)
         self.text_input.cancel_requested.connect(self.hide_overlay)
@@ -791,96 +818,50 @@ class QuickChatOverlay(QWidget):
         self.status_label = QLabel("")
         self.status_label.setObjectName("quickChatStatus")
         self.status_label.setWordWrap(True)
+        self.status_label.setTextFormat(Qt.TextFormat.PlainText)
         self.status_label.hide()
 
         button_row_widget = QWidget()
-        button_row_layout = QHBoxLayout(button_row_widget)
-        button_row_layout.setContentsMargins(0, 12, 0, 0)
-        button_row_layout.setSpacing(10)
-        button_row_layout.addStretch(1)
-
-        self.cancel_button = QPushButton("Bezárás")
-        self.cancel_button.clicked.connect(self.hide_overlay)
+        self.button_row_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight, button_row_widget)
+        self.button_row_layout.setContentsMargins(0, 0, 0, 0)
+        self.button_row_layout.setSpacing(18)
+        shortcuts = QWidget()
+        shortcut_layout = QHBoxLayout(shortcuts)
+        shortcut_layout.setContentsMargins(0, 0, 0, 0)
+        shortcut_layout.setSpacing(16)
+        for key, caption in (("Enter", "Küldés"), ("Ctrl+Enter", "Sortörés"), ("Esc", "Bezárás")):
+            column = QVBoxLayout()
+            column.setSpacing(5)
+            key_label = QLabel(key)
+            key_label.setObjectName("quickChatKey")
+            caption_label = QLabel(caption)
+            caption_label.setObjectName("quickChatKeyCaption")
+            column.addWidget(key_label, 0, Qt.AlignmentFlag.AlignLeft)
+            column.addWidget(caption_label)
+            shortcut_layout.addLayout(column)
+        shortcut_layout.addStretch(1)
+        self.button_row_layout.addWidget(shortcuts, 1)
 
         self.submit_button = QPushButton("Küldés")
         self.submit_button.setObjectName("quickChatSubmitButton")
+        self.submit_button.setIcon(icon("send", 22, "#171717"))
+        self.submit_button.setToolTip("Küldés (Enter)")
         self.submit_button.clicked.connect(self._emit_submit)
 
-        button_row_layout.addWidget(self.cancel_button)
-        button_row_layout.addWidget(self.submit_button)
+        self.button_row_layout.addWidget(self.submit_button)
 
-        panel_layout.addWidget(self.title_label)
-        panel_layout.addWidget(self.hint_label)
-        panel_layout.addWidget(self.text_input, 1)
-        panel_layout.addWidget(self.status_label)
-        panel_layout.addWidget(button_row_widget)
+        self.panel_layout.addWidget(header)
+        self.panel_layout.addWidget(self.text_input, 1)
+        self.panel_layout.addWidget(self.status_label)
+        self.panel_layout.addWidget(button_row_widget)
 
-        root_layout.addWidget(self.panel, 0, Qt.AlignmentFlag.AlignHCenter)
-        root_layout.addStretch(1)
+        self.root_layout.addWidget(self.panel, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.root_layout.addStretch(1)
 
-        self.setStyleSheet(
-            """
-            #quickChatBackdrop {
-                background: rgba(5, 10, 18, 150);
-                border-radius: 0px;
-            }
-            #quickChatPanel {
-                background: rgba(25, 28, 34, 236);
-                border: 1px solid #343842;
-                border-radius: 24px;
-            }
-            #quickChatTitle {
-                font-size: 24px;
-                font-weight: 700;
-                color: #f3f4f6;
-            }
-            #quickChatHint {
-                font-size: 13px;
-                color: #aab3c2;
-            }
-            #quickChatInput {
-                background: rgba(17, 19, 24, 232);
-                color: #f5f5f5;
-                border: 1px solid #3d424d;
-                border-radius: 16px;
-                padding: 14px 16px;
-                selection-background-color: #6b7280;
-                font-size: 15px;
-            }
-            #quickChatStatus {
-                font-size: 13px;
-                color: #d1d5db;
-            }
-            QPushButton {
-                background: #23262b;
-                color: #ececec;
-                border: 1px solid #343842;
-                border-radius: 12px;
-                padding: 9px 14px;
-                font-weight: 600;
-                min-width: 110px;
-            }
-            QPushButton:hover {
-                background: #2c3038;
-                border-color: #4a4f5a;
-            }
-            QPushButton:pressed {
-                background: #1f2125;
-            }
-            #quickChatSubmitButton {
-                background: #5e6673;
-                border: 1px solid #747d8b;
-                color: #ffffff;
-            }
-            #quickChatSubmitButton:hover {
-                background: #6b7482;
-                border-color: #848d9b;
-            }
-            #quickChatSubmitButton:pressed {
-                background: #525966;
-            }
-            """
-        )
+        self.setStyleSheet(STYLESHEET + QUICK_CHAT_STYLESHEET)
+        self._update_layout_for_size()
+        QWidget.setTabOrder(self.text_input, self.submit_button)
+        QWidget.setTabOrder(self.submit_button, self.cancel_button)
         self.background_label.lower()
         self.backdrop.lower()
         self.panel.raise_()
@@ -890,6 +871,24 @@ class QuickChatOverlay(QWidget):
         geometry = self.rect()
         self.background_label.setGeometry(geometry)
         self.backdrop.setGeometry(geometry)
+        self._update_layout_for_size()
+
+    def _update_layout_for_size(self) -> None:
+        compact = self.height() < 650
+        short = self.height() < 500
+        margin = 12 if short else 16 if compact or self.width() < 980 else 36
+        self.root_layout.setContentsMargins(margin, margin, margin, margin)
+        self.panel.setFixedWidth(min(860, max(1, self.width() - margin * 2)))
+        padding = 16 if short else 20 if compact else 28
+        self.panel_layout.setContentsMargins(padding, padding, padding, padding)
+        self.panel_layout.setSpacing(12 if short else 14 if compact else 20)
+        self.text_input.setMinimumHeight(max(64, min(124, self.height() - 300)) if compact else 220)
+        narrow = self.panel.width() < 640
+        self.cancel_button.setText("" if narrow else "Bezárás")
+        self.button_row_layout.setDirection(
+            QBoxLayout.Direction.TopToBottom if narrow and not (short and self.panel.width() >= 520)
+            else QBoxLayout.Direction.LeftToRight
+        )
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if self._busy:

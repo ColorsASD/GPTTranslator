@@ -45,3 +45,20 @@ QMenu { background: #242424; color: #ececec; border: 1px solid #484848; padding:
 QMenu::item { padding: 9px 18px; }
 QMenu::item:selected { background: #414141; border-radius: 5px; }
 """
+
+
+QUICK_CHAT_STYLESHEET = """
+#quickChatBackdrop { background: rgba(10,10,10,178); border: none; }
+#quickChatTitle { font-size: 28px; font-weight: 700; }
+#quickChatHint { font-size: 14px; color: #b6b6b6; }
+#quickChatInput { border-radius: 16px; padding: 16px 18px; font-size: 16px; }
+#quickChatInput[readOnly="true"] { background: #1b1b1b; border-color: #3c3c3c; }
+#quickChatStatus { background: #252525; border: 1px solid #3b3b3b; border-radius: 12px; padding: 12px 14px; color: #d2d2d2; font-size: 13px; }
+#quickChatKey { background: #2b2b2b; border: 1px solid #424242; border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: 600; }
+#quickChatKeyCaption { color: #b6b6b6; font-size: 12px; }
+#quickChatSubmitButton { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 #d0d0d0,stop:1 #aaaaaa); color: #171717; border: 1px solid #dedede; font-weight: 600; min-width: 144px; }
+#quickChatSubmitButton:hover { background: #dedede; }
+#quickChatSubmitButton:pressed { background: #999999; }
+#quickChatSubmitButton:focus { border-color: #ffffff; }
+#quickChatSubmitButton:disabled { background: #333333; color: #858585; border-color: #484848; }
+"""

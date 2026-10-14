@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import tempfile
@@ -21,12 +22,12 @@ os.environ.setdefault("QT_OPENGL", "software")
 os.environ.setdefault("QT_QUICK_BACKEND", "software")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PySide6.QtCore import QCoreApplication, QEvent, QEventLoop, QTimer, QUrl
-from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtCore import QCoreApplication, QEvent, QEventLoop, QPoint, QRect, QRectF, QTimer, Qt, QUrl
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QLinearGradient, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWebEngineCore import QWebEngineUrlRequestInterceptor
 
-from gamer_translator.main_window import MainWindow
+from gamer_translator.main_window import MainWindow, QuickChatOverlay
 from gamer_translator.settings_store import SettingsStore
 
 
@@ -81,9 +82,88 @@ def load_offline_browser(window: MainWindow) -> None:
     wait_for_paint()
 
 
+def render_quick_chat(app: QApplication, output: Path) -> None:
+    overlay = QuickChatOverlay()
+    results = []
+    # Kizárólag saját, szintetikus háttér: nem készül asztal- vagy játékfelvétel.
+    with patch.object(overlay, "_hide_if_inactive"):
+        for width, height, suffix, state in (
+            (1672, 900, "desktop", "empty"),
+            (1080, 720, "compact", "text"),
+            (800, 450, "small", "text"),
+            (600, 600, "narrow", "text"),
+            (1080, 720, "busy", "busy"),
+            (800, 450, "error", "error"),
+            (640, 360, "short", "text"),
+            (640, 360, "short-error", "error"),
+        ):
+            overlay.hide()
+            overlay.resize(width, height)
+            background = QPixmap(width // 2, height // 2)
+            painter = QPainter(background)
+            gradient = QLinearGradient(0, 0, background.width(), background.height())
+            gradient.setColorAt(0, QColor("#555555"))
+            gradient.setColorAt(1, QColor("#242424"))
+            painter.fillRect(background.rect(), gradient)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#383838"))
+            painter.drawRoundedRect(QRectF(20, 20, width * .11, height * .43), 12, 12)
+            painter.setBrush(QColor("#484848"))
+            painter.drawRoundedRect(QRectF(width * .15, 20, width * .32, height * .15), 12, 12)
+            painter.end()
+            overlay.background_label.setPixmap(background)
+            overlay.text_input.setPlainText(
+                "" if state == "empty" else
+                "Szia! A következő körben maradjunk együtt.\nÉn figyelem a bejáratot, te fedezd a lépcsőt."
+            )
+            overlay.set_busy(state == "busy", "Fordítás folyamatban..." if state == "busy" else "")
+            if state == "error":
+                overlay.show_error("Írj be legalább egy sort a gyors chat elküldéséhez.")
+            overlay.show()
+            overlay.text_input.setFocus()
+            app.processEvents()
+            wait_for_paint()
+            if overlay.size().width() != width or overlay.size().height() != height:
+                raise AssertionError(f"A gyors chat túlnőtt az előnézeten: {suffix}")
+            if not overlay.rect().contains(overlay.panel.geometry()):
+                raise AssertionError(f"A gyors chat panelje kilóg: {suffix}")
+            for widget in (overlay.title_label, overlay.hint_label, overlay.text_input,
+                           overlay.cancel_button, overlay.submit_button, overlay.status_label):
+                if not widget.isVisible():
+                    continue
+                rectangle = QRect(widget.mapTo(overlay.panel, QPoint(0, 0)), widget.size())
+                if not overlay.panel.rect().contains(rectangle):
+                    raise AssertionError(f"A gyors chat vezérlője kilóg: {suffix}, {widget.objectName()}")
+            rows = [overlay.panel_layout.itemAt(index).widget()
+                    for index in range(overlay.panel_layout.count())]
+            rows = [widget for widget in rows if widget.isVisible()]
+            for index, widget in enumerate(rows):
+                for other in rows[index + 1:]:
+                    if widget.geometry().intersects(other.geometry()):
+                        raise AssertionError(f"A gyors chat sorai átfedik egymást: {suffix}")
+            if overlay.submit_button.height() < overlay.submit_button.minimumSizeHint().height():
+                raise AssertionError(f"A gyors chat küldésgombja összenyomódott: {suffix}")
+            overlay.grab().save(str(output / f"quick-chat-{suffix}.png"))
+            if suffix == "compact":
+                overlay.panel.grab().save(str(output / "quick-chat-panel.png"))
+            results.append({"size": [width, height], "state": state,
+                            "panel": list(overlay.panel.geometry().getRect()),
+                            "controls_inside": True, "rows_without_overlap": True,
+                            "submit_button_full_height": True})
+            print(f"quick-chat-{suffix}: {width}x{height}, panel: "
+                  f"{overlay.panel.width()}x{overlay.panel.height()}")
+        overlay.hide()
+    overlay.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    (output / "quick-chat-layouts.json").write_text(
+        json.dumps(results, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("dist/browser-home-preview"))
+    parser.add_argument("--quick-chat-only", action="store_true", help="Csak a gyors chat saját, helyi előnézetei.")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     app = QApplication([])
@@ -92,6 +172,10 @@ def main() -> None:
     for name in ("segoeui.ttf", "segoeuib.ttf", "segoeuis.ttf"):
         QFontDatabase.addApplicationFont(str(font_dir / name))
     app.setFont(QFont("Segoe UI", 10))
+    if args.quick_chat_only:
+        render_quick_chat(app, args.output)
+        print(args.output.resolve())
+        return
     with ExitStack() as stack:
         temporary = stack.enter_context(tempfile.TemporaryDirectory(ignore_cleanup_errors=True))
         for method in (
@@ -131,6 +215,7 @@ def main() -> None:
         window.profile.deleteLater()
         window.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    render_quick_chat(app, args.output)
     print(args.output.resolve())
 
 

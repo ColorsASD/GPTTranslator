@@ -20,7 +20,7 @@ A Gamer Translator egy önálló Windows asztali alkalmazás, amely a `chatgpt.c
 - a kész fordítás automatikus visszamásolása a vágólapra
 - a mentett fordítás karakterenkénti begépelése gyorsgombbal
 - a kész válasz felismerése az új ChatGPT üzenetfelületen is
-- gyors chat overlay kézi szövegküldéshez
+- a főablakkal egyező szürke, kisebb képernyőhöz igazodó gyors chat overlay kézi szövegküldéshez
 - szerkeszthető gyorsgombok lenyomásos rögzítéssel
 - külön AltGr-kezelés, kiosztáshelyes írásjelek és Mouse 4–5 egérgombok gyorsgombként
 - tálcaikon dupla kattintásos elrejtéssel és visszahozással
