@@ -17,11 +17,12 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from PySide6.QtCore import QBuffer, QEasingCurve, QEvent, QEventLoop, QIODevice, QPoint, Property, QPropertyAnimation, QSignalBlocker, QTimer, Qt, QUrl, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QCursor, QGuiApplication, QIcon, QMouseEvent, QPixmap
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QCursor, QGuiApplication, QIcon, QMouseEvent, QPixmap
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
     QCheckBox,
+    QBoxLayout,
     QFormLayout,
     QGraphicsBlurEffect,
     QFrame,
@@ -1159,7 +1160,7 @@ class MainWindow(QMainWindow):
                   has_text=bool(self.last_translated_text))
 
         self.setWindowTitle(WINDOW_TITLE)
-        self.resize(1680, 980)
+        self.resize(1680, 900)
         self._apply_window_icon()
         self._build_tray_icon()
         self._sync_window_buttons()
@@ -1276,6 +1277,7 @@ class MainWindow(QMainWindow):
             self.profile.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies)
 
         self.page = BrowserPage(self.profile, self)
+        self.page.setBackgroundColor(QColor("#171717"))
         self.browser = QWebEngineView(self)
         self.browser.setPage(self.page)
         self.browser.setMinimumWidth(900)
@@ -1298,405 +1300,13 @@ class MainWindow(QMainWindow):
         self._set_web_attribute(browser_settings, "FullScreenSupportEnabled", True)
 
     def _build_ui(self) -> None:
-        self.monitoring_enabled = QCheckBox("A program legyen aktív")
-        self.chatgpt_url = QLineEdit()
-        self.prompt_template = QPlainTextEdit()
-        self.prompt_template.setPlaceholderText("Ide kerül a kézi prompt.")
-        self.prompt_template.setMinimumHeight(180)
-        self.copy_response_to_clipboard = QCheckBox("A ChatGPT válasza kerüljön a vágólapra")
-        self.ocr_text_from_clipboard_image = QCheckBox("Szöveg kiolvasása képről")
-        self.webview_gpu_acceleration_enabled = QCheckBox("A ChatGPT nézet használja a GPU gyorsítást")
-        self.type_out_hotkey_enabled = QCheckBox("A memóriába mentett fordítás legyen begépelhető gyorsbillentyűvel")
-        self.type_out_hotkey = self._build_hotkey_edit()
-        self.screen_clip_hotkey_enabled = QCheckBox("A Windows képkivágó nyíljon meg gyorsbillentyűvel")
-        self.screen_clip_hotkey_enabled.setToolTip(
-            "Csak az itt beállított gyorsbillentyűvel készített kép kerül automatikusan fordításra. "
-            "A Win+Shift+S és a többi másolt kép nem indít fordítást."
-        )
-        self.screen_clip_hotkey = self._build_hotkey_edit()
-        self.quick_chat_hotkey_enabled = QCheckBox("A gyors chat overlay nyíljon meg gyorsbillentyűvel")
-        self.quick_chat_hotkey = self._build_hotkey_edit()
-        self.overlay_opacity_slider = QSlider(Qt.Orientation.Horizontal)
-        self.overlay_opacity_slider.setRange(1, 100)
-        self.overlay_opacity_slider.setSingleStep(1)
-        self.overlay_opacity_slider.setPageStep(10)
-        self.overlay_opacity_slider.valueChanged.connect(self._handle_overlay_opacity_slider_changed)
-        self.overlay_opacity_value_label = QLabel("10%")
-        self.overlay_opacity_value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.overlay_duration_seconds = self._build_spin_box(maximum=120, step=1)
-        self.overlay_duration_seconds.setMinimum(1)
-        self.overlay_duration_seconds.setSuffix(" mp")
-        self.keep_chatgpt_in_background = QCheckBox("A ChatGPT maradjon háttérben, ne kapjon fókuszt")
-        self.game_mode_enabled = QCheckBox("Játék mód csökkentse a háttérterhelést")
-        self.page_ready_timeout_ms = self._build_spin_box(maximum=120000, step=1000)
-        self.page_ready_timeout_ms.setMinimum(1000)
-
-        overlay_opacity_row = QWidget()
-        overlay_opacity_layout = QHBoxLayout(overlay_opacity_row)
-        overlay_opacity_layout.setContentsMargins(0, 0, 0, 0)
-        overlay_opacity_layout.setSpacing(10)
-        overlay_opacity_layout.addWidget(self.overlay_opacity_slider, 1)
-        overlay_opacity_layout.addWidget(self.overlay_opacity_value_label)
-
-        form_layout = QFormLayout()
-        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        form_layout.addRow("", self.monitoring_enabled)
-        form_layout.addRow("Kézi prompt", self.prompt_template)
-        form_layout.addRow("", self.copy_response_to_clipboard)
-        form_layout.addRow("", self.ocr_text_from_clipboard_image)
-        form_layout.addRow("", self.webview_gpu_acceleration_enabled)
-        form_layout.addRow("", self.screen_clip_hotkey_enabled)
-        form_layout.addRow("Képkivágási gyorsbillentyű", self.screen_clip_hotkey)
-        form_layout.addRow("", self.type_out_hotkey_enabled)
-        form_layout.addRow("Begépelési gyorsbillentyű", self.type_out_hotkey)
-        form_layout.addRow("", self.quick_chat_hotkey_enabled)
-        form_layout.addRow("Gyors chat gyorsbillentyű", self.quick_chat_hotkey)
-        form_layout.addRow("", self.keep_chatgpt_in_background)
-        form_layout.addRow("", self.game_mode_enabled)
-        form_layout.addRow("Overlay láthatósága", overlay_opacity_row)
-        form_layout.addRow("Overlay megjelenési ideje (másodperc)", self.overlay_duration_seconds)
-
-        settings_group = QGroupBox("Beállítások")
-        settings_group.setLayout(form_layout)
-
-        self.status_label = QLabel("Indulásra kész.")
-        self.status_label.setWordWrap(True)
-        self.last_run_label = QLabel("Még nincs futási állapot.")
-        self.last_run_label.setWordWrap(True)
-        self.current_url_label = QLabel("")
-        self.current_url_label.setWordWrap(True)
-        self.current_url_label.setTextFormat(Qt.TextFormat.PlainText)
-        self.current_url_label.setContentsMargins(18, 4, 18, 4)
-        self.top_status_label = QLabel("Indulásra kész.")
-        self.top_status_label.setObjectName("topStatusLabel")
-        self.top_status_label.setWordWrap(False)
-        for label in (self.status_label, self.last_run_label, self.top_status_label):
-            label.setTextFormat(Qt.TextFormat.PlainText)
-
-        self.menu_button = QPushButton("Beállítások")
-        self.menu_button.clicked.connect(self.toggle_drawer)
-
-        self.open_chatgpt_button = QPushButton("ChatGPT")
-        self.send_prompt_now_button = QPushButton("Prompt elküldése")
-        self.save_settings_button = QPushButton("Beállítások mentése")
-        self.reset_defaults_button = QPushButton("Alapértékek visszaállítása")
-        self.close_drawer_button = QPushButton("Bezárás")
-
-        self.open_chatgpt_button.clicked.connect(self._handle_open_chatgpt_button_clicked)
-        self.send_prompt_now_button.clicked.connect(self.send_prompt_now)
-        self.save_settings_button.clicked.connect(self.save_settings)
-        self.reset_defaults_button.clicked.connect(self.reset_defaults)
-        self.close_drawer_button.clicked.connect(self.close_drawer)
-
-        status_group = QGroupBox("Állapot")
-        status_layout = QVBoxLayout()
-        status_layout.addWidget(QLabel("Utolsó állapot:"))
-        status_layout.addWidget(self.last_run_label)
-        status_layout.addWidget(QLabel("Futási információ:"))
-        status_layout.addWidget(self.status_label)
-        self.open_logs_button = QPushButton("Naplómappa megnyitása")
-        self.open_logs_button.clicked.connect(self._open_log_directory)
-        status_layout.addWidget(self.open_logs_button)
-        log_hint = QLabel("Részletes helyi eseménynaplózás aktív. A szövegek és képek tartalma nem kerül a naplóba.")
-        log_hint.setWordWrap(True)
-        status_layout.addWidget(log_hint)
-        status_group.setLayout(status_layout)
-
-        drawer_buttons = QHBoxLayout()
-        drawer_buttons.addWidget(self.save_settings_button)
-        drawer_buttons.addWidget(self.reset_defaults_button)
-
-        drawer_content = QWidget()
-        drawer_content.setObjectName("drawerContent")
-        drawer_content_layout = QVBoxLayout(drawer_content)
-        drawer_content_layout.setContentsMargins(0, 0, 0, 0)
-        drawer_content_layout.setSpacing(16)
-        drawer_content_layout.addWidget(settings_group)
-        drawer_content_layout.addLayout(drawer_buttons)
-        drawer_content_layout.addWidget(status_group)
-        drawer_content_layout.addStretch(1)
-
-        self.window_title_label = QLabel(APP_NAME)
-        self.window_title_label.setObjectName("windowTitleLabel")
-        self.window_icon_label = QLabel("")
-        self.window_icon_label.setObjectName("windowIconLabel")
-        self._load_title_icon()
-
-        self.menu_button.setObjectName("headerButton")
-        self.open_chatgpt_button.setObjectName("headerButton")
-        self.send_prompt_now_button.setObjectName("accentHeaderButton")
-        self.top_status_label.setFixedHeight(44)
-
-        root_surface = QWidget()
-        root_surface.setObjectName("rootSurface")
-        root_layout = QVBoxLayout(root_surface)
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(0)
-        self.setCentralWidget(root_surface)
-
-        self.top_bar = TitleBar(root_surface)
-        self.top_bar.setObjectName("topBar")
-        self.top_bar.setFixedHeight(72)
-        top_bar_layout = QHBoxLayout(self.top_bar)
-        top_bar_layout.setContentsMargins(18, 14, 18, 14)
-        top_bar_layout.setSpacing(10)
-        top_bar_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        top_bar_layout.addWidget(self.top_status_label, 1)
-        top_bar_layout.addWidget(self.open_chatgpt_button)
-        top_bar_layout.addWidget(self.menu_button)
-        top_bar_layout.addWidget(self.send_prompt_now_button)
-        root_layout.addWidget(self.top_bar)
-        # A böngésző eredete mindig látható; a bejelentkezési tokeneket nem jelenítjük meg.
-        root_layout.addWidget(self.current_url_label)
-        self.browser.urlChanged.connect(self._update_browser_origin_label)
-
-        self.content_surface = QFrame()
-        self.content_surface.setObjectName("contentSurface")
-        self.content_layout = QVBoxLayout(self.content_surface)
-        self.content_layout.setContentsMargins(0, 0, 0, 0)
-        self.content_layout.setSpacing(0)
-        self.content_layout.addWidget(self.browser)
-        root_layout.addWidget(self.content_surface, 1)
-
-        self.browser_status_placeholder = QFrame(self.content_surface)
-        self.browser_status_placeholder.setObjectName("browserStatusPlaceholder")
-        self.browser_status_placeholder.hide()
-        placeholder_layout = QVBoxLayout(self.browser_status_placeholder)
-        placeholder_layout.setContentsMargins(48, 42, 48, 42)
-        placeholder_layout.setSpacing(14)
-        placeholder_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.browser_status_title = QLabel("A ChatGPT nézet pihentetve van")
-        self.browser_status_title.setObjectName("browserStatusTitle")
-        self.browser_status_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.browser_status_body = QLabel("")
-        self.browser_status_body.setObjectName("browserStatusBody")
-        self.browser_status_body.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.browser_status_body.setWordWrap(True)
-        self.browser_status_hint = QLabel("")
-        self.browser_status_hint.setObjectName("browserStatusHint")
-        self.browser_status_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.browser_status_hint.setWordWrap(True)
-        placeholder_layout.addStretch(1)
-        placeholder_layout.addWidget(self.browser_status_title)
-        placeholder_layout.addWidget(self.browser_status_body)
-        placeholder_layout.addWidget(self.browser_status_hint)
-        placeholder_layout.addStretch(1)
-
-        self.frame_pulse_dot = QFrame(self.content_surface)
-        self.frame_pulse_dot.setObjectName("framePulseDot")
-        self.frame_pulse_dot.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self.frame_pulse_dot.setStyleSheet("background: rgba(16, 18, 22, 1);")
-        self.frame_pulse_dot.setGeometry(0, 0, 1, 1)
-        self.frame_pulse_dot.show()
-
-        self.drawer_backdrop = DrawerBackdrop(self.content_surface)
-        self.drawer_backdrop.clicked.connect(self.close_drawer)
-        self.drawer_backdrop.hide()
-        self.drawer_backdrop.set_opacity(0.0)
-
-        self.drawer_panel = QFrame(self.content_surface)
-        self.drawer_panel.setObjectName("drawerPanel")
-        self.drawer_panel.hide()
-
-        top_bar_shadow = QGraphicsDropShadowEffect(self.top_bar)
-        top_bar_shadow.setBlurRadius(20)
-        top_bar_shadow.setColor(Qt.GlobalColor.black)
-        top_bar_shadow.setOffset(0, 5)
-        self.top_bar.setGraphicsEffect(top_bar_shadow)
-
-        drawer_layout = QVBoxLayout(self.drawer_panel)
-        drawer_layout.setContentsMargins(18, 18, 18, 18)
-        drawer_layout.setSpacing(14)
-
-        drawer_header = QHBoxLayout()
-        drawer_title = QLabel("Beállítások")
-        drawer_title.setObjectName("drawerTitle")
-        drawer_header.addWidget(drawer_title)
-        drawer_header.addStretch(1)
-        drawer_header.addWidget(self.close_drawer_button)
-
-        self.drawer_scroll = QScrollArea()
-        self.drawer_scroll.setWidgetResizable(True)
-        self.drawer_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.drawer_scroll.setWidget(drawer_content)
-        self.drawer_scroll.viewport().setObjectName("drawerScrollViewport")
-
-        drawer_layout.addLayout(drawer_header)
-        drawer_layout.addWidget(self.drawer_scroll, 1)
-
-        self.drawer_animation = QPropertyAnimation(self.drawer_panel, b"pos", self)
-        self.drawer_animation.setDuration(280)
-        self.drawer_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self.drawer_animation.finished.connect(self._on_drawer_animation_finished)
-
-        self.backdrop_animation = QPropertyAnimation(self.drawer_backdrop, b"opacity", self)
-        self.backdrop_animation.setDuration(220)
-        self.backdrop_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self.backdrop_animation.finished.connect(self._on_backdrop_animation_finished)
+        from .design_ui import build_ui
+        build_ui(self)
 
     def _apply_styles(self) -> None:
-        self.centralWidget().setStyleSheet(
-            """
-            #rootSurface {
-                background: #181818;
-            }
-            QWidget {
-                color: #ececec;
-                font-size: 13px;
-            }
-            #topBar {
-                background: #181818;
-                border-bottom: 1px solid #2b2d31;
-            }
-            #contentSurface {
-                background: #171717;
-            }
-            #browserStatusPlaceholder {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #15181d, stop:1 #101216);
-                border: 1px solid #2b2d31;
-                border-radius: 18px;
-            }
-            #browserStatusTitle {
-                font-size: 22px;
-                font-weight: 700;
-                color: #f3f4f6;
-            }
-            #browserStatusBody {
-                font-size: 15px;
-                color: #e5e7eb;
-            }
-            #browserStatusHint {
-                font-size: 13px;
-                color: #9ca3af;
-            }
-            #drawerPanel {
-                background: transparent;
-                border: none;
-            }
-            #drawerContent, #drawerScrollViewport {
-                background: transparent;
-            }
-            #drawerTitle {
-                font-size: 18px;
-                font-weight: 700;
-                color: #f3f4f6;
-            }
-            #windowTitleLabel {
-                font-size: 14px;
-                font-weight: 700;
-                color: #f7f7f8;
-            }
-            #windowIconLabel {
-                min-width: 20px;
-                max-width: 20px;
-                min-height: 20px;
-                max-height: 20px;
-            }
-            #topStatusLabel {
-                background: #202227;
-                border: 1px solid #343842;
-                border-radius: 12px;
-                padding: 9px 14px;
-                color: #d1d5db;
-            }
-            QGroupBox {
-                font-size: 14px;
-                font-weight: 700;
-                border: 1px solid #343842;
-                border-radius: 16px;
-                margin-top: 14px;
-                padding: 18px 14px 14px 14px;
-                background: #1f2125;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 14px;
-                padding: 0 6px;
-                color: #d1d5db;
-            }
-            QPushButton {
-                background: #23262b;
-                color: #ececec;
-                border: 1px solid #343842;
-                border-radius: 12px;
-                padding: 9px 14px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background: #2c3038;
-                border-color: #4a4f5a;
-            }
-            QPushButton:pressed {
-                background: #1f2125;
-            }
-            #headerButton {
-                min-height: 44px;
-                max-height: 44px;
-                background: #23262b;
-                border-color: #343842;
-                padding-top: 0;
-                padding-bottom: 0;
-                padding-left: 13px;
-                padding-right: 13px;
-            }
-            #accentHeaderButton {
-                min-height: 44px;
-                max-height: 44px;
-                background: #5e6673;
-                border: 1px solid #747d8b;
-                color: #ffffff;
-                padding-top: 0;
-                padding-bottom: 0;
-                padding-left: 13px;
-                padding-right: 13px;
-            }
-            #accentHeaderButton:hover {
-                background: #6b7482;
-                border-color: #848d9b;
-            }
-            #accentHeaderButton:pressed {
-                background: #525966;
-            }
-            QLineEdit, QPlainTextEdit, QSpinBox {
-                background: #17191d;
-                color: #f1f1f1;
-                border: 1px solid #343842;
-                border-radius: 12px;
-                padding: 8px 10px;
-                selection-background-color: #6b7280;
-            }
-            QPlainTextEdit {
-                padding-top: 10px;
-            }
-            QSpinBox::up-button, QSpinBox::down-button {
-                width: 18px;
-                border: none;
-                background: transparent;
-            }
-            QCheckBox {
-                spacing: 9px;
-                color: #ececec;
-            }
-            QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
-                border-radius: 6px;
-                border: 1px solid #4b4f57;
-                background: #17191d;
-            }
-            QCheckBox::indicator:checked {
-                background: #6b7280;
-                border-color: #6b7280;
-            }
-            QLabel {
-                color: #ececec;
-            }
-            QScrollArea {
-                border: none;
-                background: transparent;
-            }
-            """
-        )
+        from .design_theme import STYLESHEET
+        check_path = resource_path("gamer_translator/assets/check.svg").as_posix()
+        self.centralWidget().setStyleSheet(STYLESHEET.replace("CHECK_MARK_ASSET", check_path))
 
     def _load_title_icon(self) -> None:
         icon_path = resource_path("gamer_translator/assets/icon-128.png")
@@ -1803,6 +1413,8 @@ class MainWindow(QMainWindow):
         return self._is_window_hidden_for_tray() and (self.settings.keep_chatgpt_in_background or interaction_active)
 
     def _sync_browser_host_mode(self) -> None:
+        if getattr(self, "operations_cancelled", False):
+            return
         if not hasattr(self, "browser"):
             return
 
@@ -1816,6 +1428,8 @@ class MainWindow(QMainWindow):
             self._deactivate_background_browser_host()
 
     def _sync_browser_runtime_state(self) -> None:
+        if getattr(self, "operations_cancelled", False):
+            return
         if not hasattr(self, "browser"):
             return
 
@@ -1861,6 +1475,8 @@ class MainWindow(QMainWindow):
         finally:
             self._sync_browser_placeholder()
             self._update_browser_refresh_timer()
+            if hasattr(self, "home_panel"):
+                self._sync_shell_focus()
 
     def _should_keep_system_awake(self) -> bool:
         return self.settings.monitoring_enabled
@@ -2284,6 +1900,7 @@ class MainWindow(QMainWindow):
         self._set_drawer_open(False)
 
     def _handle_open_chatgpt_button_clicked(self) -> None:
+        self._show_browser()
         self.open_chatgpt(show_error_dialog=True)
 
     def open_chatgpt(self, *, show_error_dialog: bool = False) -> None:
@@ -3832,97 +3449,190 @@ class MainWindow(QMainWindow):
 
     def _set_drawer_open(self, opened: bool) -> None:
         self.drawer_open = opened
-        self._set_browser_blur(opened)
-        self._layout_overlay_widgets()
-
-        visible_x, hidden_x, top_margin, _panel_height = self._drawer_positions()
-        target_x = visible_x if opened else hidden_x
-
-        self.drawer_animation.stop()
-        self.drawer_panel.show()
-        self.drawer_animation.setStartValue(self.drawer_panel.pos())
-        self.drawer_animation.setEndValue(QPoint(target_x, top_margin))
-        self.drawer_animation.start()
-
-        self.backdrop_animation.stop()
-
         if opened:
-            self.drawer_backdrop.show()
-            self.drawer_backdrop.raise_()
+            self.drawer_panel.show()
+            self._layout_overlay_widgets()
             self.drawer_panel.raise_()
-            self.backdrop_animation.setStartValue(self.drawer_backdrop.get_opacity())
-            self.backdrop_animation.setEndValue(1.0)
-            self.backdrop_animation.start()
             self.close_drawer_button.setFocus(Qt.FocusReason.OtherFocusReason)
         else:
-            self.backdrop_animation.setStartValue(self.drawer_backdrop.get_opacity())
-            self.backdrop_animation.setEndValue(0.0)
-            self.backdrop_animation.start()
-            self.menu_button.setFocus(Qt.FocusReason.OtherFocusReason)
-
-    def _on_drawer_animation_finished(self) -> None:
-        if not self.drawer_open:
             self.drawer_panel.hide()
+            self._select_navigation(self._shell_page)
+            self._layout_overlay_widgets()
             self.menu_button.setFocus(Qt.FocusReason.OtherFocusReason)
+        if opened:
+            self._select_navigation("settings")
 
-    def _on_backdrop_animation_finished(self) -> None:
-        if not self.drawer_open:
-            self.drawer_backdrop.hide()
+    def _select_navigation(self, section: str) -> None:
+        for key, control in self.nav_buttons.items():
+            control.setChecked(key == section)
+
+    def _show_home(self) -> None:
+        self._shell_page = "home"
+        self.drawer_open = False
+        self.drawer_panel.hide()
+        self.home_panel.show()
+        self.home_panel.raise_()
+        self._select_navigation("home")
+        self._layout_overlay_widgets()
+
+    def _show_browser(self) -> None:
+        self._shell_page = "browser"
+        self.drawer_open = False
+        self.drawer_panel.hide()
+        self.home_panel.hide()
+        self._select_navigation("")
+        self._layout_overlay_widgets()
+        self.browser.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _navigate_shell(self, section: str) -> None:
+        if section == "home":
+            self._show_home()
+        elif section == "settings":
+            self._set_drawer_open(True)
+        elif section == "discover":
+            self._show_home()
+            self._select_navigation("discover")
+            self.suggestion_cards[0].setFocus(Qt.FocusReason.OtherFocusReason)
+        elif section in {"history", "profile"}:
+            self._show_browser()
+            self._select_navigation(section)
+            message = ("Az előzmények a ChatGPT bal oldali beszélgetéslistájában érhetők el."
+                       if section == "history" else "A profil és az előfizetés a ChatGPT fiókmenüjében érhető el.")
+            self._set_live_status(message)
+            if not self._is_chatgpt_url(self.browser.url().toString()):
+                self.open_chatgpt(show_error_dialog=True)
+
+    def _set_home_mode(self, mode: str) -> None:
+        self._home_mode = "work" if mode == "work" else "chat"
+        self.chat_tab_button.setChecked(self._home_mode == "chat")
+        self.work_tab_button.setChecked(self._home_mode == "work")
+        self.home_question.setText("Mit fordítsak le neked?" if self._home_mode == "work" else "Miben segíthetek ma?")
+        self.home_input.setPlaceholderText("Írd be a fordítandó játékszöveget..." if self._home_mode == "work" else "Kérdezz a ChatGPT-től...")
+
+    def _use_suggestion(self, index: int) -> None:
+        suggestions = ("", "Foglald össze ennek a patch note-nak a főbb változásait:\n",
+                       "Adj stratégiai tippeket ehhez a játékhoz és boss fight-hoz: ",
+                       "Magyarázd el ennek a játékszakszónak a jelentését: ")
+        if not 0 <= index < len(suggestions):
+            return
+        self._set_home_mode("work" if index == 0 else "chat")
+        self.home_input.setText(suggestions[index])
+        self.home_input.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _submit_home_text(self) -> None:
+        text = self.home_input.text().strip()
+        if not text:
+            self.home_input.setFocus(Qt.FocusReason.OtherFocusReason)
+            return
+        if self.browser_interaction_active or self.clipboard_translation_in_progress:
+            self._set_live_status("Már fut egy másik ChatGPT művelet, várd meg amíg befejeződik.")
+            return
+        if self._home_mode == "work":
+            if not self._read_settings_from_form().monitoring_enabled:
+                self._set_live_status("A program nincs aktív állapotban, ezért a gyors chat nem küldhető el.")
+                return
+            self.home_send_button.setEnabled(False)
+            self._show_browser()
+            try:
+                self._process_quick_chat_translation(text)
+                if self.translation_result_complete and self.translation_result_request_id == self.latest_translation_request_id:
+                    self.home_input.clear()
+            finally:
+                self.home_send_button.setEnabled(True)
+        else:
+            self._send_home_prompt(text)
+
+    def _send_home_prompt(self, text: str) -> None:
+        self.settings = self._read_settings_from_form()
+        self._begin_browser_interaction()
+        self.home_send_button.setEnabled(False)
+        try:
+            self._set_live_status("Az üzenet elküldése folyamatban.")
+            self._ensure_chatgpt_page_loaded(reload_if_open=False)
+            self._ensure_automation_ready()
+            self._execute_delivery({
+                "prompt": text, "imageDataUrl": "", "imageMimeType": "", "imageFilename": "",
+                "autoSubmit": True, "copyResponseToClipboard": False, "waitForResponse": False,
+                "pageReadyTimeoutMs": self.settings.page_ready_timeout_ms,
+                "responseTimeoutMs": DEFAULT_RESPONSE_TIMEOUT_MS,
+            })
+            self.home_input.clear()
+            self._show_browser()
+            self._save_last_run_status("Az üzenet elküldve a ChatGPT-nek.")
+        except BrowserOperationCancelled:
+            pass
+        except Exception as error:
+            log_exception("home.send_failed", error, text_length=len(text))
+            self._set_live_status(str(error))
+        finally:
+            self.home_send_button.setEnabled(True)
+            self._end_browser_interaction()
+
+    def _show_capture_menu(self) -> None:
+        menu = QMenu(self)
+        action = menu.addAction("Képkivágás fordítása")
+        action.triggered.connect(self._trigger_screen_clip_hotkey)
+        menu.exec(self.home_attach_button.mapToGlobal(QPoint(0, self.home_attach_button.height())))
+
+    def _open_voice_input(self) -> None:
+        self._show_browser()
+        if not self._is_chatgpt_url(self.browser.url().toString()):
+            self.open_chatgpt(show_error_dialog=True)
+        self._set_live_status("A hangbevitel a ChatGPT üzenetmezőjének mikrofon gombjával indítható.")
 
     def _set_browser_blur(self, enabled: bool) -> None:
-        if enabled:
-            blur_effect = QGraphicsBlurEffect(self.browser)
-            blur_effect.setBlurRadius(18)
-            self.browser.setGraphicsEffect(blur_effect)
-            self.browser_blur_effect = blur_effect
-            return
+        # A teljes beállítási felület elfedi a webnézetet; nincs drága rendererelmosás.
+        return
 
-        self.browser.setGraphicsEffect(None)
-        self.browser_blur_effect = None
-
-    def _drawer_positions(self) -> tuple[int, int, int, int]:
-        surface_width = max(320, self.content_surface.width())
-        surface_height = max(320, self.content_surface.height())
-        margin = 0
-        panel_width = surface_width
-        panel_height = surface_height
-        visible_x = 0
-        hidden_x = -panel_width
-        self.drawer_panel.resize(panel_width, panel_height)
-        return visible_x, hidden_x, margin, panel_height
+    def _sync_shell_focus(self) -> None:
+        covered = self._shell_page == "home" or self.drawer_open
+        proxy = self.browser.focusProxy()
+        if proxy is not None:
+            saved = proxy.property("gamerTranslatorFocusPolicy")
+            if saved is None:
+                saved = int(proxy.focusPolicy())
+                proxy.setProperty("gamerTranslatorFocusPolicy", saved)
+            proxy.setFocusPolicy(Qt.FocusPolicy.NoFocus if covered else Qt.FocusPolicy(saved))
+        self.browser.setFocusPolicy(Qt.FocusPolicy.NoFocus if covered else Qt.FocusPolicy.StrongFocus)
 
     def _layout_overlay_widgets(self) -> None:
-        if not hasattr(self, "content_surface"):
+        if not hasattr(self, "content_surface") or not hasattr(self, "home_panel"):
             return
-
-        surface_width = max(320, self.content_surface.width())
-        surface_height = max(320, self.content_surface.height())
-        placeholder_margin = 24
-        self.browser_status_placeholder.setGeometry(
-            placeholder_margin,
-            placeholder_margin,
-            max(160, surface_width - (placeholder_margin * 2)),
-            max(160, surface_height - (placeholder_margin * 2)),
-        )
-        self.drawer_backdrop.setGeometry(0, 0, surface_width, surface_height)
-
-        visible_x, hidden_x, top_margin, panel_height = self._drawer_positions()
-        current_x = visible_x if self.drawer_open else hidden_x
-        self.drawer_panel.move(current_x, top_margin)
-        self.drawer_panel.resize(self.drawer_panel.width(), panel_height)
-
+        rect = self.content_surface.rect()
+        self.home_panel.setGeometry(rect)
+        self.drawer_panel.setGeometry(rect)
+        compact = rect.height() < 660
+        layout = self.home_panel.layout()
+        layout.setContentsMargins(24 if compact else 36, 14 if compact else 20,
+                                  24 if compact else 36, 14 if compact else 22)
+        self.home_composer.setFixedWidth(min(930, max(300, rect.width() - 100)))
+        self.home_composer.setFixedHeight(76 if compact else 86)
+        self.home_composer.setStyleSheet("#homeComposer { border-radius: 38px; }" if compact else "#homeComposer { border-radius: 43px; }")
+        self.home_cards_container.setFixedWidth(min(1290, max(300, rect.width() - (48 if compact else 144))))
+        self.home_logo.setFixedSize(44 if compact else 84, 44 if compact else 84)
+        from .design_widgets import icon
+        self.home_logo.setPixmap(icon("chatgpt", size=44 if compact else 84).pixmap(44 if compact else 84, 44 if compact else 84))
+        self.home_greeting.setStyleSheet("font-size: 28px; font-weight: 700;" if compact else "font-size: 40px; font-weight: 700;")
+        self.home_question.setStyleSheet("font-size: 22px;" if compact else "font-size: 26px;")
+        self.home_hint.setStyleSheet("font-size: 13px; color: #b2b2b2;" if compact else "font-size: 17px; color: #b2b2b2;")
+        for index, small, full in ((3, 10, 18), (5, 2, 8), (7, 3, 5), (9, 18, 38), (11, 16, 28), (15, 8, 30)):
+            layout.itemAt(index).spacerItem().changeSize(0, small if compact else full)
+        layout.invalidate()
+        self.home_top_caption.setGeometry(max(0, rect.width() - 166), 48, 160, 74)
+        self.home_bottom_caption.setGeometry(38, max(0, rect.height() - 102), 260, 80)
+        self.home_top_caption.setVisible(not compact)
+        self.home_bottom_caption.setVisible(not compact)
+        self.settings_columns.setDirection(QBoxLayout.Direction.TopToBottom if rect.width() < 1200 else QBoxLayout.Direction.LeftToRight)
+        self.save_settings_button.setFixedWidth(200 if rect.width() < 1200 else 284)
+        self.reset_defaults_button.setFixedWidth(218 if rect.width() < 1200 else 288)
+        if self._shell_page == "home":
+            self.home_panel.raise_()
         if self.drawer_open:
-            self.browser_status_placeholder.raise_()
-            self.drawer_backdrop.raise_()
             self.drawer_panel.raise_()
-
         if hasattr(self, "frame_pulse_dot"):
-            pulse_x = max(0, surface_width - 1)
-            pulse_y = max(0, surface_height - 1)
-            self.frame_pulse_dot.setGeometry(pulse_x, pulse_y, 1, 1)
-            self.frame_pulse_dot.raise_()
-
+            self.frame_pulse_dot.move(max(0, rect.width() - 1), max(0, rect.height() - 1))
         self._sync_browser_placeholder()
+        self._sync_shell_focus()
 
     def _ensure_automation_ready(self) -> None:
         if self.page_loading:

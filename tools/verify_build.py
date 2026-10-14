@@ -37,10 +37,10 @@ for relative_path in source_paths:
     checks[f"source:{relative_path}"] = stored_code == expected_code
     source_hashes[relative_path] = hashlib.sha256((root / relative_path).read_bytes()).hexdigest()
 
-for relative_path in ("gamer_translator/automation.js", "gamer_translator/assets/icon-128.png"):
+for relative_path in ("gamer_translator/automation.js", "gamer_translator/assets/icon-128.png", "gamer_translator/assets/check.svg"):
     checks[f"asset:{relative_path}"] = relative_path in entries and archive.extract(entries[relative_path]) == (root / relative_path).read_bytes()
 
-for suffix in ("QtWebEngineProcess.exe", "Qt6WebEngineCore.dll", "qtwebengine_resources.pak", "icudtl.dat", "qwindows.dll", "onnxruntime_pybind11_state.pyd"):
+for suffix in ("QtWebEngineProcess.exe", "Qt6WebEngineCore.dll", "Qt6Svg.dll", "QtSvg.pyd", "qtwebengine_resources.pak", "icudtl.dat", "qwindows.dll", "onnxruntime_pybind11_state.pyd"):
     checks[f"runtime:{suffix}"] = any(name.endswith(suffix) for name in entries)
 
 checks["runtime:Windows OCR"] = any("winrt" in name and "windows_media_ocr" in name.lower() and name.endswith(".pyd") for name in entries)

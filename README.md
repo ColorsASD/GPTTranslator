@@ -8,6 +8,8 @@ A Gamer Translator egy önálló Windows asztali alkalmazás, amely a `chatgpt.c
 
 ## Fő képességek
 
+- szürke kezdőlap bal oldali navigációval, Chat/Work bevitellel és ajánlókártyákkal
+- kétoszlopos beállítások állandó mentési sávval, kis ablakban egyoszlopos elrendezéssel
 - saját ablakos `chatgpt.com` felület
 - kézi promptküldés a felső `Prompt elküldése` gombbal
 - Windows képkivágó indítása gyorsgombbal
@@ -53,6 +55,8 @@ A Gamer Translator egy önálló Windows asztali alkalmazás, amely a `chatgpt.c
 - `build.ps1`: `.exe` build PowerShellből
 - `requirements.txt`: Python függőségek
 - `gamer_translator/`: az alkalmazás forráskódja és assetjei
+
+A szürke felület felépítése, működése és az elkülönített előnézet készítése a [felületi leírásban](docs/design.md) szerepel.
 
 ## Futtatás fejlesztés közben
 

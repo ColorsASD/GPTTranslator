@@ -49,6 +49,7 @@ $outputExe = Join-Path $outputPath "Gamer Translator.exe"
 $mainScript = Join-Path $projectRoot "main.py"
 $iconFile = Join-Path $projectRoot "gamer_translator\assets\icon.ico"
 $icon128File = Join-Path $projectRoot "gamer_translator\assets\icon-128.png"
+$checkMarkFile = Join-Path $projectRoot "gamer_translator\assets\check.svg"
 $automationScript = Join-Path $projectRoot "gamer_translator\automation.js"
 $requirementsFile = Join-Path $projectRoot "requirements-lock.txt"
 
@@ -89,6 +90,7 @@ try {
     --icon "$iconFile" `
     --add-data "${automationScript};gamer_translator" `
     --add-data "${icon128File};gamer_translator\assets" `
+    --add-data "${checkMarkFile};gamer_translator\assets" `
     "$mainScript"
 
   $buildExitCode = $LASTEXITCODE
