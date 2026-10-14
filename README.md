@@ -8,9 +8,10 @@ A Gamer Translator egy önálló Windows asztali alkalmazás, amely a `chatgpt.c
 
 ## Fő képességek
 
-- szürke kezdőlap bal oldali navigációval, Chat/Work bevitellel és ajánlókártyákkal
+- közvetlenül megnyíló `chatgpt.com` főoldal, szürke felső állapotsávval és műveleti gombokkal
 - kétoszlopos beállítások állandó mentési sávval, kis ablakban egyoszlopos elrendezéssel
 - saját ablakos `chatgpt.com` felület
+- magyar mikrofonengedély-ablak a ChatGPT hangbeszélgetéséhez
 - kézi promptküldés a felső `Prompt elküldése` gombbal
 - Windows képkivágó indítása gyorsgombbal
 - a saját képkivágási gyorsgombbal készített képek automatikus beküldése a ChatGPT-be
@@ -28,6 +29,7 @@ A Gamer Translator egy önálló Windows asztali alkalmazás, amely a `chatgpt.c
 - egy példányos indítás, ahol a második megnyitás a meglévő ablakot aktiválja
 - állítható overlay láthatóság és megjelenési idő
 - a GPU gyorsítás módosítása mentés után automatikus újraindítással lép érvénybe
+- automatikus NVIDIA-kompatibilitási beállítás a fókuszban jelentkező egérakadás javításához, külön profillal a futó EXE számára
 - automatikus helyi esemény- és hibanaplózás, kérésenként követhető fordítási folyamattal
 
 ## Alap gyorsgombok
@@ -89,7 +91,7 @@ A `-SkipDependencyInstall` kapcsolót csak előzetesen telepített és ellenőrz
 
 ## Használat
 
-1. Indítsd el a programot.
+1. Indítsd el a programot; a főablakban közvetlenül a `chatgpt.com` oldal nyílik meg.
 2. Jelentkezz be a ChatGPT-be a megnyíló saját ablakban.
 3. A `Prompt elküldése` gombbal küldd el a kézi promptot az aktuális beszélgetésbe.
 4. Nyomd meg a beállított képkivágási gyorsbillentyűt (alapból `Alt + C`), majd jelöld ki a fordítandó területet. A `Win + Shift + S` billentyűvel készített vagy más módon vágólapra másolt kép nem indul el automatikus fordításra.
@@ -106,6 +108,14 @@ A `-SkipDependencyInstall` kapcsolót csak előzetesen telepített és ellenőrz
 - az OCR-re várakozás közben a program folyamatosan kezeli a bemeneti eseményeket; globális egérfigyelést csak Mouse 4–5 gyorsgomb használatakor vagy gyorsgomb rögzítése közben tart fenn
 - az automatikus képfordítás csak a saját képkivágási gyorsbillentyűhöz tartozik; az `Esc` megszakítja a várakozást, a következő kivágásra legfeljebb 45 másodperc áll rendelkezésre
 - ha a GPU gyorsítás állapota megváltozik és elmented a beállításokat, a program automatikusan újraindul
+- a `NVIDIA egérakadás javítása` beállítás alapból aktív; a kész EXE normál induláskor az adott gép NVIDIA-illesztőprogramjában állítja be a saját profilját, ezért másik gépen vagy másik EXE-útvonalon is elvégzi a szükséges helyi beállítást
+- az NVIDIA-kompatibilitási kapcsoló módosítása mentés után újraindítással lép érvénybe; kikapcsoláskor csak a program által létrehozott és azóta változatlan saját automatikus profil távolítható el
+- a ChatGPT `Start voice` gombja után a program magyar ablakban kér mikrofonengedélyt; az `Engedélyezés` elindíthatja a mikrofon használatát, a `Tiltás`, az Escape és az ablak bezárása elutasítja a kérést
+- a mikrofonengedély csak a főablak aktuális, engedélyezett HTTPS ChatGPT-eredetének hangrögzítési kérésére adható; az alkalmazás kamerát és külső oldalnak szóló engedélyt nem ad
+
+Az NVIDIA-profil a videokártya-illesztőprogram helyi, egy alkalmazáshoz tartozó beállítása. A beépített javítás csak a Gamer Translator számára kapcsolja ki a G-SYNC/VRR alkalmazásszintű használatát; a játékok profiljához és a globális beállításokhoz nem nyúl. Új profil létrehozása és ellenőrzése után a program egyszer automatikusan újraindul, hogy friss folyamattal használja a beállítást. NVIDIA nélküli gépen a program a szokásos módon indul. A működés, a meglévő felhasználói profilok megőrzése és a kikapcsolás részletei az [NVIDIA-kompatibilitás leírásában](docs/nvidia-compatibility.md) szerepelnek.
+
+A hangbeszélgetéshez mikrofonhozzáférés szükséges. A fejhallgató hangkimenetéhez nincs külön Qt webes engedélykérő; a lejátszás a Windows hangkimeneti beállításait követi. A program minden új Qt-mikrofonengedélykérésnél felhasználói döntést kér, és nem ment saját tartós mikrofonengedélyt. A működés és az offline ellenőrzés részletei a [hangengedélyek leírásában](docs/voice-permissions.md) találhatók.
 
 ## Tálca és háttérmód
 
@@ -113,6 +123,7 @@ A `-SkipDependencyInstall` kapcsolót csak előzetesen telepített és ellenőrz
 - a tálcaikon dupla kattintásra elrejti vagy visszahozza az ablakot
 - jobb kattintással `Eltüntetés` és `Kilépés` menü érhető el
 - eltüntetve vagy lekicsinyítve is tovább fut a fordítási folyamat
+- aktív mikrofon vagy hanglejátszás közben a rejtett weboldal futása megmarad, saját háttérbeli újrarajzolási időzítő nélkül; a hang leállása után a tétlen lap ismét felfüggeszthető
 - a programból egyszerre csak egy példány futtatható
 
 ## Esemény- és hibanaplózás
@@ -141,7 +152,7 @@ A szerepattribútum nélküli képes üzenetek élő DOM-vizsgálata és a sajá
 
 - A projekt nem az OpenAI API-t használja, hanem a webes ChatGPT felületet.
 - A működés a `chatgpt.com` oldal felépítésére épül, ezért egy nagyobb felületi változás után a DOM-kezelést frissíteni kellhet.
-- Az automatizálás csak a `https://chatgpt.com` és a `https://chat.openai.com` főoldali eredeten használható. Külső oldalon leáll, az aktuális eredet az ablak felső részén látható.
+- Az automatizálás csak a `https://chatgpt.com` és a `https://chat.openai.com` főoldali eredeten használható. Külső oldalon leáll; az eredet ellenőrzése a külön URL-sor eltávolítása után is megmarad.
 - Aktív programnál a saját képkivágási gyorsbillentyű után érkező első vágólapkép vagy a belőle kiolvasott szöveg automatikusan az aktuális ChatGPT-beszélgetésbe kerül. A kivágásra várakozás közben ne másolj más képet a vágólapra; az `Esc` vagy a külön megnyomott `Win + Shift + S` törli ezt az egyszeri küldési engedélyt.
 - A program a legutóbbi fordítást és a böngésző munkamenetét helyben megőrzi. A begépelési gyorsgomb az aktív ablakba ír; sortörést és tabulátort is küldhet, ezért terminálban ne használd.
 - A vágólap képkorlátja 40 millió képpont és 20 MiB PNG-adat. Az OCR modelleket a program SHA-256 ellenőrzés után tölti be.
@@ -161,7 +172,7 @@ A kész EXE külön offline önteszttel is ellenőrizhető:
 & '.\dist\staging\verified\Gamer Translator.exe' --self-test-report '.\dist\staging\verified\self-test.json' --self-test-duration 120
 ```
 
-A jelentésben a `passed: true` és a sikeres kilépési kód jelzi a lefutást. Az önteszt nem nyitja meg a normál profilt, nem használja a rendszer vágólapját, nem regisztrál globális gyorsbillentyűt, és a mintalap külső hálózati kéréseit blokkolja. Az offline képpróba a csatolást ellenőrzi, az OCR minőségét külön mérjük.
+A jelentésben a `passed: true` és a sikeres kilépési kód jelzi a lefutást. Az önteszt nem nyitja meg a normál profilt, nem használja a rendszer vágólapját, nem regisztrál globális gyorsbillentyűt, és a mintalap külső hálózati kéréseit blokkolja. Az offline képpróba a csatolást ellenőrzi, az OCR minőségét külön mérjük. Az NVIDIA-illesztőprogram profiljait az önteszt és a `--staging` mód sem módosítja; a forrásból indított Python-programban az automatikus profilkezelés nem fut.
 
 A `--staging` kapcsoló ideiglenes profillal nyitja meg az élő ChatGPT-t, kikapcsolt figyeléssel és rendszerintegrációk nélkül. A sütik csak a memóriában maradnak. Ez a helyi alkalmazás tesztmódja, nem az OpenAI belső tesztkörnyezete; a kézzel elküldött szöveg az élő szolgáltatáshoz kerül.
 

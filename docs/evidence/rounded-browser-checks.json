@@ -1,0 +1,595 @@
+{
+  "checkedAt": "2026-10-14T20:43:46.372320+00:00",
+  "scope": "local rounded browser, blended native titlebar, idle lifecycle revision after v5.17",
+  "appVersion": "5.17",
+  "baseCommit": "2e712e1f2ef7c1831eba795639af2833e6ed8ce1",
+  "pythonTests": {
+    "passed": 348,
+    "failed": 0,
+    "elapsedSeconds": 95.751
+  },
+  "javascriptTests": {
+    "passed": 55,
+    "failed": 0
+  },
+  "designTests": {
+    "passed": 11,
+    "failed": 0
+  },
+  "browserHoverTests": {
+    "passed": 5,
+    "failed": 0
+  },
+  "browserLifecycleTests": {
+    "passed": 17,
+    "existingNavigationCancellation": 6,
+    "newSuspendResumeTests": 11
+  },
+  "buildChecks": {
+    "passed": 40,
+    "total": 40
+  },
+  "executable": {
+    "name": "Gamer Translator.exe",
+    "bytes": 381639784,
+    "sha256": "4e3c02f82dd2a6ba91c9b01c86bc176703bf058e49ea93589401a9769d5ce1d1"
+  },
+  "sourceSha256": {
+    "main.py": "5e7341f37ed30776cbae027c967d1b3fbb11ae177aceb3c2ce17d19a309251e9",
+    "gamer_translator/defaults.py": "b2908394b042f092aa64e47a01012146a48dace1a4d30f30de9a38c3b2fa1620",
+    "gamer_translator/design_theme.py": "6037b06e9373147952a047c47354cc17a2e3b1c3e66c2b70b8a37bda7cfd3339",
+    "gamer_translator/design_ui.py": "75b6ea220a724f20cf5a74ef3b3b7c562cfc487eab2a351b134b6379f3abf22f",
+    "gamer_translator/design_widgets.py": "4c20d6375fb2bfd1c0915304961749665ff075bc62104206d9b7239d6b4938b4",
+    "gamer_translator/diagnostics.py": "fd54840e6e76e18e86ed7f5f837e9eb2efd76a561b0ff07ae1f832b0f0efd7be",
+    "gamer_translator/hotkeys.py": "0cc11e1ff7470ce8ff9361a01a94f54877a5b2a5ff824852ea6e83c73a5bfa19",
+    "gamer_translator/main_window.py": "31941f47728d7202ec1a5557d15e41dffc0814b9ca47d78d5148a71ed96bf339",
+    "gamer_translator/ocr_service.py": "0a4370c908d2e4bc7e01dde93a1930c3773c70929066c648d28e057e9e53b3e9",
+    "gamer_translator/self_test.py": "8e53c00ad82481e8e90af79347e9c6acca9a05ffe70945aeb3167d329d46ce0c",
+    "gamer_translator/settings_store.py": "a76805fd0a4d92ed9020b6cc1751e65ec7ff809d01d46b4a95f1cc1a726357fd"
+  },
+  "frozenSelfTest": {
+    "frozen": true,
+    "checks": {
+      "window_and_webengine_start": true,
+      "isolated_profile_and_clipboard": true,
+      "repeated_quick_chat_response_storage_overlay_hide_show": true,
+      "clipboard_requires_screen_clip_hotkey": true,
+      "png_attachment_native_pipeline": true,
+      "role_heading_image_response_binding": true,
+      "clickable_image_response_binding": true,
+      "unmarked_user_heading_image_response_binding": true,
+      "modern_image_then_text_current_response_storage": true,
+      "no_network_requests_or_native_hotkeys": true,
+      "native_rapidocr_and_windows_inference": true,
+      "clean_window_shutdown": true
+    },
+    "cycles": 9,
+    "modernImageRequests": 3,
+    "modernTextRequests": 1,
+    "ocr": {
+      "expected": "Hello gamer",
+      "rapidocr": "Hello gamer",
+      "windows": "Hello gamer"
+    },
+    "elapsedSeconds": 14.163,
+    "passed": true,
+    "exitCode": 0
+  },
+  "cornerChecks": {
+    "passed": true,
+    "checks": [
+      {
+        "state": "desktop",
+        "cornerColors": [
+          "#141414",
+          "#141414",
+          "#141414",
+          "#141414"
+        ],
+        "insideColor": "#ff00ff",
+        "browserMaskActive": true
+      },
+      {
+        "state": "compact",
+        "cornerColors": [
+          "#141414",
+          "#141414",
+          "#141414",
+          "#141414"
+        ],
+        "insideColor": "#ff00ff",
+        "browserMaskActive": true
+      },
+      {
+        "state": "settings-return",
+        "cornerColors": [
+          "#141414",
+          "#141414",
+          "#141414",
+          "#141414"
+        ],
+        "insideColor": "#ff00ff",
+        "browserMaskActive": true
+      },
+      {
+        "state": "background-return",
+        "cornerColors": [
+          "#141414",
+          "#141414",
+          "#141414",
+          "#141414"
+        ],
+        "insideColor": "#ff00ff",
+        "browserMaskActive": true
+      }
+    ]
+  },
+  "nativeHeader": {
+    "scope": "Saját izolált MainWindow, privát profil, hálózat és rendszerhook nélkül",
+    "windows": "sys.getwindowsversion(major=10, minor=0, build=26300, platform=2, service_pack='')",
+    "sets": [
+      {
+        "attribute": 20,
+        "hresult": 0,
+        "hresult_hex": "0x00000000",
+        "value": 1,
+        "hex": "0x00000001",
+        "bytes": 4
+      },
+      {
+        "attribute": 33,
+        "hresult": 0,
+        "hresult_hex": "0x00000000",
+        "value": 2,
+        "hex": "0x00000002",
+        "bytes": 4
+      },
+      {
+        "attribute": 34,
+        "hresult": 0,
+        "hresult_hex": "0x00000000",
+        "value": 1513239,
+        "hex": "0x00171717",
+        "bytes": 4
+      },
+      {
+        "attribute": 35,
+        "hresult": 0,
+        "hresult_hex": "0x00000000",
+        "value": 1513239,
+        "hex": "0x00171717",
+        "bytes": 4
+      },
+      {
+        "attribute": 36,
+        "hresult": 0,
+        "hresult_hex": "0x00000000",
+        "value": 15527148,
+        "hex": "0x00ececec",
+        "bytes": 4
+      }
+    ],
+    "readback": [
+      {
+        "attribute": 20,
+        "hresult": 0,
+        "hresult_hex": "0x00000000",
+        "value": 1,
+        "hex": "0x00000001"
+      },
+      {
+        "attribute": 33,
+        "hresult": 0,
+        "hresult_hex": "0x00000000",
+        "value": 2,
+        "hex": "0x00000002"
+      },
+      {
+        "attribute": 34,
+        "hresult": -2147024809,
+        "hresult_hex": "0x80070057",
+        "value": 0,
+        "hex": "0x00000000"
+      },
+      {
+        "attribute": 35,
+        "hresult": -2147024809,
+        "hresult_hex": "0x80070057",
+        "value": 0,
+        "hex": "0x00000000"
+      },
+      {
+        "attribute": 36,
+        "hresult": -2147024809,
+        "hresult_hex": "0x80070057",
+        "value": 0,
+        "hex": "0x00000000"
+      }
+    ],
+    "readback_limitation": "A 34/35/36 színattribútum a Microsoft dokumentáció szerint Set-only; a Get ezen az OS-en E_INVALIDARG (0x80070057).",
+    "source": "https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute"
+  },
+  "performanceProbeBefore": {
+    "gpu_enabled": true,
+    "chromium_flags": "--enable-gpu-rasterization --enable-zero-copy --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion",
+    "platform": "windows",
+    "screen_refresh_hz": 239.76,
+    "screen_name": "Odyssey G40B",
+    "loaded": true,
+    "raf": {
+      "frames": 328,
+      "mean_ms": 16.81859756097561,
+      "median_ms": 16.699999999999818,
+      "p95_ms": 16.700000000000728,
+      "fps": 59.457989667361545,
+      "visibility": "visible",
+      "webgl": {
+        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 (0x00002216) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "vendor": "Google Inc. (NVIDIA)"
+      }
+    },
+    "window_visible": true,
+    "minimized": false,
+    "browser_background_mode": false,
+    "browser_visible": true,
+    "manual_timer_interval": 60,
+    "foreground_idle": {
+      "elapsed_seconds": 4.504206699999486,
+      "cpu_seconds": 0.46875,
+      "cpu_percent_one_core": 10.406938029732371,
+      "cpu_percent_machine": 1.3008672537165464,
+      "own_process_count": 2,
+      "background_mode": false,
+      "refresh_timer_interval": 60
+    },
+    "background_idle": {
+      "elapsed_seconds": 4.502631100000144,
+      "cpu_seconds": 0.15625,
+      "cpu_percent_one_core": 3.470193238793091,
+      "cpu_percent_machine": 0.4337741548491364,
+      "own_process_count": 2,
+      "background_mode": true,
+      "refresh_timer_interval": 250
+    }
+  },
+  "performanceProbeAfter": {
+    "gpu_enabled": true,
+    "default_gpu_flags": false,
+    "chromium_flags": "--enable-gpu-rasterization --enable-zero-copy --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion",
+    "platform": "windows",
+    "screen_refresh_hz": 239.76,
+    "screen_name": "Odyssey G40B",
+    "loaded": true,
+    "raf": {
+      "frames": 331,
+      "mean_ms": 16.66586102719033,
+      "median_ms": 16.699999999999818,
+      "p95_ms": 16.700000000000728,
+      "fps": 60.002900442317454,
+      "visibility": "visible",
+      "webgl": {
+        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 (0x00002216) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "vendor": "Google Inc. (NVIDIA)"
+      }
+    },
+    "window_visible": true,
+    "minimized": false,
+    "browser_background_mode": false,
+    "browser_visible": true,
+    "manual_timer_interval": 20,
+    "foreground_idle": {
+      "elapsed_seconds": 4.501502300001448,
+      "cpu_seconds": 0.03125,
+      "cpu_percent_one_core": 0.6942126853959387,
+      "cpu_percent_machine": 0.08677658567449234,
+      "own_process_count": 2,
+      "background_mode": false,
+      "refresh_timer_interval": 20,
+      "refresh_timer_active": false,
+      "page_lifecycle": "LifecycleState.Active",
+      "page_visible": true,
+      "browser_updates": true,
+      "host_visible": false,
+      "pulse_visible": true
+    },
+    "background_idle": {
+      "elapsed_seconds": 4.50815319999856,
+      "cpu_seconds": 0.015625,
+      "cpu_percent_one_core": 0.3465942550489409,
+      "cpu_percent_machine": 0.043324281881117616,
+      "own_process_count": 2,
+      "background_mode": true,
+      "refresh_timer_interval": 20,
+      "refresh_timer_active": false,
+      "page_lifecycle": "LifecycleState.Frozen",
+      "page_visible": false,
+      "browser_updates": false,
+      "host_visible": false,
+      "pulse_visible": false
+    },
+    "raf_background_resume_snapshot": {
+      "counter": 3,
+      "visibility": "visible"
+    },
+    "raf_after_restore": {
+      "done": true,
+      "frames": 181,
+      "mean_ms": 16.665745856353592,
+      "fps": 60.00331510028178
+    },
+    "restored_state": {
+      "lifecycle": "LifecycleState.Active",
+      "page_visible": true,
+      "browser_updates": true,
+      "refresh_timer_active": false
+    }
+  },
+  "performanceProbeAfterDefaultGpuFlags": {
+    "gpu_enabled": true,
+    "default_gpu_flags": true,
+    "chromium_flags": "--disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion",
+    "platform": "windows",
+    "screen_refresh_hz": 239.76,
+    "screen_name": "Odyssey G40B",
+    "loaded": true,
+    "raf": {
+      "frames": 331,
+      "mean_ms": 16.666163141993955,
+      "median_ms": 16.699999999999818,
+      "p95_ms": 16.700000000000728,
+      "fps": 60.00181274358743,
+      "visibility": "visible",
+      "webgl": {
+        "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 (0x00002216) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        "vendor": "Google Inc. (NVIDIA)"
+      }
+    },
+    "window_visible": true,
+    "minimized": false,
+    "browser_background_mode": false,
+    "browser_visible": true,
+    "manual_timer_interval": 20,
+    "foreground_idle": {
+      "elapsed_seconds": 4.501369600000544,
+      "cpu_seconds": 0.03125,
+      "cpu_percent_one_core": 0.6942331507280856,
+      "cpu_percent_machine": 0.0867791438410107,
+      "own_process_count": 2,
+      "background_mode": false,
+      "refresh_timer_interval": 20,
+      "refresh_timer_active": false,
+      "page_lifecycle": "LifecycleState.Active",
+      "page_visible": true,
+      "browser_updates": true,
+      "host_visible": false,
+      "pulse_visible": true
+    },
+    "background_idle": {
+      "elapsed_seconds": 4.503388700000869,
+      "cpu_seconds": 0.03125,
+      "cpu_percent_one_core": 0.6939218904198514,
+      "cpu_percent_machine": 0.08674023630248143,
+      "own_process_count": 2,
+      "background_mode": true,
+      "refresh_timer_interval": 20,
+      "refresh_timer_active": false,
+      "page_lifecycle": "LifecycleState.Frozen",
+      "page_visible": false,
+      "browser_updates": false,
+      "host_visible": false,
+      "pulse_visible": false
+    },
+    "raf_background_resume_snapshot": {
+      "counter": 3,
+      "freeze_counter": 2,
+      "resume_counter": 2,
+      "visibility": "visible"
+    },
+    "raf_after_restore": {
+      "done": true,
+      "frames": 181,
+      "mean_ms": 16.666298342541428,
+      "fps": 60.00132599615464
+    },
+    "restored_state": {
+      "lifecycle": "LifecycleState.Active",
+      "page_visible": true,
+      "browser_updates": true,
+      "refresh_timer_active": false
+    }
+  },
+  "driverInspection": {
+    "scope": "Read-only DRS, only four G-SYNC settings; no SaveSettings/SetSetting/profile writes",
+    "sources": [
+      "https://github.com/NVIDIA/nvapi/blob/main/nvapi.h",
+      "https://github.com/NVIDIA/nvapi/blob/main/nvapi_interface.h",
+      "https://github.com/NVIDIA/nvapi/blob/main/NvApiDriverSettings.h"
+    ],
+    "structure_bytes": {
+      "NVDRS_SETTING_V1": 12320,
+      "NVDRS_APPLICATION_V1": 12296
+    },
+    "status": {
+      "initialize": 0,
+      "create_session": 0,
+      "load_settings": 0,
+      "global_profile": 0,
+      "find_LOCAL_GAMER_TRANSLATOR": -166,
+      "find_ROUNDED_GAMER_TRANSLATOR": -166,
+      "find_SOURCE_PYTHON": -166,
+      "find_CHROME": 0,
+      "find_RELEASE_GAMER_TRANSLATOR": -166,
+      "destroy_session": 0,
+      "unload": 0
+    },
+    "profiles": [
+      {
+        "scope": "GLOBAL",
+        "settings": [
+          {
+            "name": "VRR_MODE",
+            "id": "0x1194f158",
+            "status": 0,
+            "value": 1,
+            "meaning": "FULLSCREEN_ONLY",
+            "type": 0,
+            "location": 0,
+            "is_current_predefined": 0
+          },
+          {
+            "name": "VRRREQUESTSTATE",
+            "id": "0x1094f1f7",
+            "status": 0,
+            "value": 1,
+            "meaning": "FULLSCREEN_ONLY",
+            "type": 0,
+            "location": 0,
+            "is_current_predefined": 0
+          },
+          {
+            "name": "VRR_APP_OVERRIDE",
+            "id": "0x10a879cf",
+            "status": 0,
+            "value": 0,
+            "meaning": "ALLOW",
+            "type": 0,
+            "location": 0,
+            "is_current_predefined": 0
+          },
+          {
+            "name": "VRR_APP_OVERRIDE_REQUEST_STATE",
+            "id": "0x10a879ac",
+            "status": -160
+          }
+        ]
+      },
+      {
+        "scope": "CHROME",
+        "settings": [
+          {
+            "name": "VRR_MODE",
+            "id": "0x1194f158",
+            "status": 0,
+            "value": 1,
+            "meaning": "FULLSCREEN_ONLY",
+            "type": 0,
+            "location": 1,
+            "is_current_predefined": 0
+          },
+          {
+            "name": "VRRREQUESTSTATE",
+            "id": "0x1094f1f7",
+            "status": 0,
+            "value": 1,
+            "meaning": "FULLSCREEN_ONLY",
+            "type": 0,
+            "location": 1,
+            "is_current_predefined": 0
+          },
+          {
+            "name": "VRR_APP_OVERRIDE",
+            "id": "0x10a879cf",
+            "status": 0,
+            "value": 1,
+            "meaning": "FORCE_OFF",
+            "type": 0,
+            "location": 0,
+            "is_current_predefined": 1
+          },
+          {
+            "name": "VRR_APP_OVERRIDE_REQUEST_STATE",
+            "id": "0x10a879ac",
+            "status": -160
+          }
+        ]
+      }
+    ]
+  },
+  "physicalMouseAndGameLatencyVerified": false,
+  "driverSettingsChanged": true,
+  "driverProfileTest": {
+    "explicitUserApproval": true,
+    "stateFile": "dist/rounded-browser-preview/nvapi-steady-refresh-backup-20261014T204101Z-d238f670-0aac-4e64-811f-95c8ce30aef3.json",
+    "stage": "applied_verified",
+    "profileName": "ColorsASD Gamer Translator – steady refresh",
+    "onlySettingId": 279476687,
+    "onlySettingValue": 1,
+    "scope": "exact rounded-browser executable path only",
+    "verification": {
+      "profile_name": "ColorsASD Gamer Translator – steady refresh",
+      "is_predefined": 0,
+      "num_apps": 1,
+      "num_settings": 1,
+      "exact_application": "dist/staging/rounded-browser/Gamer Translator.exe",
+      "exactFullPathVerified": true,
+      "own_setting": {
+        "status": 0,
+        "id": 279476687,
+        "type": 0,
+        "location": 0,
+        "value": 1,
+        "predefined": 0
+      },
+      "references": {
+        "global": {
+          "0x1194f158": {
+            "status": 0,
+            "id": 294973784,
+            "type": 0,
+            "location": 0,
+            "value": 1,
+            "predefined": 0
+          },
+          "0x1094f1f7": {
+            "status": 0,
+            "id": 278196727,
+            "type": 0,
+            "location": 0,
+            "value": 1,
+            "predefined": 0
+          },
+          "0x10a879cf": {
+            "status": 0,
+            "id": 279476687,
+            "type": 0,
+            "location": 0,
+            "value": 0,
+            "predefined": 0
+          }
+        },
+        "chrome": {
+          "find_status": 0,
+          "override": {
+            "status": 0,
+            "id": 279476687,
+            "type": 0,
+            "location": 0,
+            "value": 1,
+            "predefined": 1
+          }
+        }
+      }
+    },
+    "operationStatuses": {
+      "CreateProfile": 0,
+      "CreateApplication": 0,
+      "SetSetting": 0,
+      "SaveSettings": 0
+    },
+    "globalAndChromeReferenceValuesUnchanged": true,
+    "restorationImplemented": true,
+    "restorationExecuted": false,
+    "physicalMouseLatencyVerified": false,
+    "verificationMethod": "explicit user report; no instrumented latency measurement",
+    "userReportedFocusMouseLagResolved": true
+  },
+  "userVerification": {
+    "verifiedAt": "2026-10-14T20:46:08.824036+00:00",
+    "method": "explicit user report after application restart with approved NVIDIA profile",
+    "scope": "focused application, static webpage after 10-15 seconds, subsequent mouse movement",
+    "focusMouseLagResolved": true,
+    "userResponse": "Megszűnt az akadás",
+    "gameFrameRateMeasured": false,
+    "browserFrameRateIncreaseVerified": false
+  }
+}

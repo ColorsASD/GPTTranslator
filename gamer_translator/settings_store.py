@@ -49,6 +49,7 @@ class AppSettings:
     copy_response_to_clipboard: bool = bool(DEFAULT_SETTINGS["copyResponseToClipboard"])
     ocr_text_from_clipboard_image: bool = bool(DEFAULT_SETTINGS["ocrTextFromClipboardImage"])
     webview_gpu_acceleration_enabled: bool = bool(DEFAULT_SETTINGS["webViewGpuAccelerationEnabled"])
+    nvidia_mouse_lag_fix_enabled: bool = bool(DEFAULT_SETTINGS["nvidiaMouseLagFixEnabled"])
     type_out_hotkey_enabled: bool = bool(DEFAULT_SETTINGS["typeOutHotkeyEnabled"])
     type_out_hotkey: str = str(DEFAULT_SETTINGS["typeOutHotkey"])
     screen_clip_hotkey_enabled: bool = bool(DEFAULT_SETTINGS["screenClipHotkeyEnabled"])
@@ -99,6 +100,7 @@ class AppSettings:
             copy_response_to_clipboard=coerce_bool(raw.get("copyResponseToClipboard"), DEFAULT_SETTINGS["copyResponseToClipboard"]),
             ocr_text_from_clipboard_image=coerce_bool(raw.get("ocrTextFromClipboardImage"), DEFAULT_SETTINGS["ocrTextFromClipboardImage"]),
             webview_gpu_acceleration_enabled=coerce_bool(raw.get("webViewGpuAccelerationEnabled"), DEFAULT_SETTINGS["webViewGpuAccelerationEnabled"]),
+            nvidia_mouse_lag_fix_enabled=coerce_bool(raw.get("nvidiaMouseLagFixEnabled"), DEFAULT_SETTINGS["nvidiaMouseLagFixEnabled"]),
             type_out_hotkey_enabled=coerce_bool(raw.get("typeOutHotkeyEnabled"), DEFAULT_SETTINGS["typeOutHotkeyEnabled"]),
             type_out_hotkey=type_out_hotkey,
             screen_clip_hotkey_enabled=coerce_bool(raw.get("screenClipHotkeyEnabled"), DEFAULT_SETTINGS["screenClipHotkeyEnabled"]),
@@ -122,6 +124,7 @@ class AppSettings:
             "copyResponseToClipboard": raw["copy_response_to_clipboard"],
             "ocrTextFromClipboardImage": raw["ocr_text_from_clipboard_image"],
             "webViewGpuAccelerationEnabled": raw["webview_gpu_acceleration_enabled"],
+            "nvidiaMouseLagFixEnabled": raw["nvidia_mouse_lag_fix_enabled"],
             "typeOutHotkeyEnabled": raw["type_out_hotkey_enabled"],
             "typeOutHotkey": raw["type_out_hotkey"],
             "screenClipHotkeyEnabled": raw["screen_clip_hotkey_enabled"],

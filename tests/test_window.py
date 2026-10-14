@@ -85,6 +85,8 @@ class NativeWindowTests(unittest.TestCase):
                     pass
                 def _handle_load_finished(self, ok):
                     pass
+                def _sync_browser_runtime_state(self):
+                    pass
             window = Window()
             window.store = SimpleNamespace(browser_dir=Path(directory))
             # A valódi beállítási kód memóriaalapú profilt kap, lemezes munkamenet nélkül.
@@ -109,12 +111,17 @@ class NativeWindowTests(unittest.TestCase):
             settings = store.load_settings()
             settings.monitoring_enabled = False
             store.save_settings(settings)
-            window = MainWindow()
+            window = MainWindow(store=store, private_browser=True, open_on_start=False)
             self.app.processEvents()
             window._update_browser_origin_label(QUrl("https://chatgpt.com/"))
             self.assertEqual(window.current_url_label.text(), "ChatGPT: https://chatgpt.com")
             self.assertGreaterEqual(window.page_ready_timeout_ms.minimum(), 1000)
-            self.assertGreaterEqual(window.centralWidget().layout().indexOf(window.current_url_label), 0)
+            self.assertEqual(window.centralWidget().layout().indexOf(window.current_url_label), -1)
+            self.assertTrue(window.current_url_label.isHidden())
+            self.assertIs(window.current_url_label.parentWidget(), window.centralWidget())
+            self.assertFalse(hasattr(window, "sidebar"))
+            self.assertFalse(hasattr(window, "home_panel"))
+            self.assertIs(window.browser.parentWidget(), window.content_surface)
             window.exit_requested = True
             window.close()
             for widget in (window.browser, window.page, window.browser_background_host, window.translation_overlay, window.quick_chat_overlay):

@@ -4,9 +4,9 @@ import math
 from functools import lru_cache
 
 from PySide6.QtCore import QEasingCurve, QPointF, Property, QPropertyAnimation, QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QCheckBox, QFrame, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import QCheckBox, QFrame, QSizePolicy, QWidget
 
 
 SURFACE = QColor("#252525")
@@ -219,6 +219,30 @@ class IconBadge(QWidget):
         _draw_icon(painter, self.name, QRectF(self.rect()).adjusted(inset, inset, -inset, -inset), TEXT)
 
 
+class ContentEdge(QWidget):
+    """Élsimított sarok és szegély a téglalapban rajzoló webnézet felett."""
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        outline = QPainterPath()
+        outline.addRoundedRect(QRectF(self.rect()).adjusted(.5, .5, -.5, -.5), 20, 20)
+        outside = QPainterPath()
+        outside.setFillRule(Qt.FillRule.OddEvenFill)
+        outside.addRect(QRectF(self.rect()))
+        outside.addPath(outline)
+        painter.fillPath(outside, QColor("#141414"))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor("#323232"), 1))
+        painter.drawPath(outline)
+
+
 class AmbientPanel(QFrame):
     def __init__(self, parent: QWidget | None = None, controller: bool = True) -> None:
         super().__init__(parent)
@@ -317,103 +341,6 @@ class AmbientPanel(QFrame):
         for x, y in ((75, -3), (55, 18), (95, 18), (75, 39)):
             painter.drawEllipse(QRectF(x - 10, y - 10, 20, 20))
         painter.restore()
-
-
-class NavButton(QPushButton):
-    def __init__(self, text: str, icon_name: str, parent: QWidget | None = None) -> None:
-        super().__init__(text, parent)
-        self.icon_name = icon_name
-        self.setObjectName("navButton")
-        self.setCheckable(True)
-        self.setMinimumHeight(84)
-        self.setMinimumWidth(78)
-        self.setMaximumWidth(96)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setAccessibleName(text)
-
-    def sizeHint(self) -> QSize:
-        return QSize(86, 88)
-
-    def paintEvent(self, event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        rect = QRectF(self.rect()).adjusted(.5, .5, -.5, -.5)
-        if self.isChecked() or self.underMouse() or self.isDown():
-            gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
-            gradient.setColorAt(0, QColor("#343434") if self.isChecked() else QColor("#292929"))
-            gradient.setColorAt(1, QColor("#272727") if self.isChecked() else QColor("#242424"))
-            painter.setBrush(gradient)
-            painter.setPen(QPen(QColor("#383838") if self.isChecked() else QColor("#303030"), 1))
-            painter.drawRoundedRect(rect, 13, 13)
-        if self.isChecked():
-            painter.setPen(QPen(QColor("#d5d5d5"), 2.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-            painter.drawLine(QPointF(1.5, 9), QPointF(1.5, self.height() - 9))
-        color = TEXT if self.isEnabled() else QColor("#737373")
-        _draw_icon(painter, self.icon_name, QRectF((self.width() - 27) / 2, 16, 27, 27), color)
-        font = QFont(self.font())
-        font.setPixelSize(13)
-        font.setWeight(QFont.Weight.DemiBold if self.isChecked() else QFont.Weight.Normal)
-        painter.setFont(font)
-        painter.setPen(color)
-        painter.drawText(QRectF(4, 49, self.width() - 8, 25), Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, self.text())
-        if self.hasFocus():
-            painter.setPen(QPen(QColor("#777777"), 1, Qt.PenStyle.DotLine))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(rect.adjusted(4, 4, -4, -4), 10, 10)
-
-
-class SuggestionCard(QPushButton):
-    def __init__(self, title: str, description: str, icon_name: str, parent: QWidget | None = None) -> None:
-        super().__init__(title, parent)
-        self.description = description
-        self.icon_name = icon_name
-        self.setObjectName("suggestionCard")
-        self.setMinimumHeight(138)
-        self.setMinimumWidth(180)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setAccessibleName(title)
-        self.setAccessibleDescription(description)
-
-    def sizeHint(self) -> QSize:
-        return QSize(285, 146)
-
-    def paintEvent(self, event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        rect = QRectF(self.rect()).adjusted(.5, .5, -.5, -.5)
-        gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        gradient.setColorAt(0, QColor("#2b2b2b") if self.underMouse() else QColor("#252525"))
-        gradient.setColorAt(1, QColor("#252525") if self.underMouse() else QColor("#212121"))
-        painter.setBrush(gradient)
-        painter.setPen(QPen(QColor("#505050") if self.underMouse() else BORDER, 1))
-        painter.drawRoundedRect(rect, 18, 18)
-        badge = QRectF(18, 16, 48, 48)
-        badge_gradient = QLinearGradient(badge.topLeft(), badge.bottomRight())
-        badge_gradient.setColorAt(0, QColor("#343434"))
-        badge_gradient.setColorAt(1, QColor("#282828"))
-        painter.setBrush(badge_gradient)
-        painter.setPen(QPen(QColor("#3a3a3a"), 1))
-        painter.drawEllipse(badge)
-        _draw_icon(painter, self.icon_name, badge.adjusted(11, 11, -11, -11), TEXT)
-        _draw_icon(painter, "chevron_right", QRectF(self.width() - 35, 29, 18, 18), TEXT)
-        font = QFont(self.font())
-        font.setPixelSize(14)
-        font.setWeight(QFont.Weight.DemiBold)
-        painter.setFont(font)
-        painter.setPen(TEXT)
-        title_rect = QRectF(81, 18, self.width() - 120, 44)
-        painter.drawText(title_rect, Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextWordWrap, self.text())
-        font.setPixelSize(15)
-        font.setWeight(QFont.Weight.Normal)
-        painter.setFont(font)
-        painter.setPen(SECONDARY)
-        painter.drawText(QRectF(20, 77, self.width() - 39, self.height() - 87), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap, self.description)
-        if self.hasFocus():
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(QColor("#8a8a8a"), 1, Qt.PenStyle.DotLine))
-            painter.drawRoundedRect(rect.adjusted(4, 4, -4, -4), 14, 14)
 
 
 class ToggleSwitch(QCheckBox):

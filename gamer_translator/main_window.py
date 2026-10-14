@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlparse
 
-from PySide6.QtCore import QBuffer, QEasingCurve, QEvent, QEventLoop, QIODevice, QPoint, Property, QPropertyAnimation, QSignalBlocker, QTimer, Qt, QUrl, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QCursor, QGuiApplication, QIcon, QMouseEvent, QPixmap
+from PySide6.QtCore import QBuffer, QEasingCurve, QEvent, QEventLoop, QIODevice, QPoint, Property, QPropertyAnimation, QRectF, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QCursor, QGuiApplication, QIcon, QMouseEvent, QPainterPath, QPixmap, QPointingDevice, QRegion
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -130,6 +130,9 @@ if sys.platform == "win32":
     THREAD_PRIORITY_LOWEST = -2
     DWMWA_USE_IMMERSIVE_DARK_MODE = 20
     DWMWA_WINDOW_CORNER_PREFERENCE = 33
+    DWMWA_BORDER_COLOR = 34
+    DWMWA_CAPTION_COLOR = 35
+    DWMWA_TEXT_COLOR = 36
     DWMWCP_ROUND = 2
 
     class MOUSEINPUT(ctypes.Structure):
@@ -546,6 +549,30 @@ class TitleBar(QFrame):
                 return
 
         super().mouseDoubleClickEvent(event)
+
+
+class RoundedWebEngineView(QWebEngineView):
+    """A webes rajzolófelület is követi a natív keret belső sarokívét."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._corner_radius = 0
+
+    def set_corner_radius(self, radius: int) -> None:
+        self._corner_radius = max(0, int(radius))
+        self._update_corner_mask()
+
+    def resizeEvent(self, event) -> None:  # type: ignore[override]
+        super().resizeEvent(event)
+        self._update_corner_mask()
+
+    def _update_corner_mask(self) -> None:
+        if not getattr(self, "_corner_radius", 0) or self.rect().isEmpty():
+            self.clearMask()
+            return
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(self.rect()), self._corner_radius, self._corner_radius)
+        self.setMask(QRegion(path.toFillPolygon().toPolygon()))
 
 
 class BrowserBackgroundHost(QWidget):
@@ -1185,6 +1212,7 @@ class MainWindow(QMainWindow):
         self.hotkey_system_integration_enabled = False
         self.operations_cancelled = True
         self.browser_operations_cancelled.emit()
+        self.browser_permissions.cancel_pending()
         if hasattr(self, "diagnostics_timer"):
             self.diagnostics_timer.stop()
         self.store.save_settings(self._read_settings_from_form())
@@ -1206,6 +1234,7 @@ class MainWindow(QMainWindow):
         if not self.native_window_theme_applied:
             self._apply_native_window_theme()
             self.native_window_theme_applied = True
+        QTimer.singleShot(0, self._apply_native_window_theme)
 
         if self.isVisible() and not self.isMinimized():
             self._deactivate_background_browser_host()
@@ -1224,6 +1253,14 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         self._layout_overlay_widgets()
 
+    def eventFilter(self, watched, event) -> bool:  # type: ignore[override]
+        # A főablak Resize eseménye a belső layout végleges méretezése előtt
+        # is lefuthat. A keret és a beállítások a tényleges gazda méretét kövessék.
+        if (watched is getattr(self, "content_surface", None)
+                and event.type() in (QEvent.Type.Resize, QEvent.Type.Show)):
+            self._layout_overlay_widgets()
+        return super().eventFilter(watched, event)
+
     def changeEvent(self, event) -> None:  # type: ignore[override]
         if event.type() == QEvent.Type.WindowStateChange:
             self._sync_window_buttons()
@@ -1240,6 +1277,7 @@ class MainWindow(QMainWindow):
         elif event.type() in (QEvent.Type.WindowActivate, QEvent.Type.WindowDeactivate):
             QTimer.singleShot(0, self._sync_browser_host_mode)
             QTimer.singleShot(0, self._sync_browser_runtime_state)
+            QTimer.singleShot(0, self._apply_native_window_theme)
 
         super().changeEvent(event)
 
@@ -1266,6 +1304,10 @@ class MainWindow(QMainWindow):
         super().keyPressEvent(event)
 
     def _build_browser(self) -> None:
+        # A Windows egere csak az első eseménynél regisztrálódhat. A profil előtt
+        # kérjük a fő mutatóeszközt, hogy a Chromium ne „pointer: none” képességet
+        # tároljon, ami letiltaná az oldal egérre megjelenő menüit és feliratait.
+        QPointingDevice.primaryPointingDevice()
         if getattr(self, "private_browser", False):
             self.profile = QWebEngineProfile(self)
         else:
@@ -1278,7 +1320,13 @@ class MainWindow(QMainWindow):
 
         self.page = BrowserPage(self.profile, self)
         self.page.setBackgroundColor(QColor("#171717"))
-        self.browser = QWebEngineView(self)
+        from .browser_permissions import BrowserMicrophonePermissions
+        self.browser_permissions = BrowserMicrophonePermissions(self.page, self)
+        # A mikrofon és a hang leállásakor a Qt új ajánlott életciklust jelez.
+        self.page.recommendedStateChanged.connect(
+            lambda _state: QTimer.singleShot(0, self._sync_browser_runtime_state)
+        )
+        self.browser = RoundedWebEngineView(self)
         self.browser.setPage(self.page)
         self.browser.setMinimumWidth(900)
         self.browser_blur_effect: QGraphicsBlurEffect | None = None
@@ -1380,6 +1428,7 @@ class MainWindow(QMainWindow):
 
         self.browser.setParent(target_widget)
         target_layout.addWidget(self.browser)
+        self.browser.set_corner_radius(19 if target_widget is self.content_surface else 0)
         self.browser.show()
 
     def _activate_background_browser_host(self) -> None:
@@ -1408,7 +1457,8 @@ class MainWindow(QMainWindow):
 
     def _should_use_background_browser_host(self) -> bool:
         interaction_active = (self.browser_interaction_active or self.page_loading or self.clipboard_translation_in_progress
-                              or bool(getattr(self, "response_followup_progress_call_id", "")))
+                              or bool(getattr(self, "response_followup_progress_call_id", ""))
+                              or bool(getattr(self, "browser_automation_initializing", False)))
 
         return self._is_window_hidden_for_tray() and (self.settings.keep_chatgpt_in_background or interaction_active)
 
@@ -1439,24 +1489,23 @@ class MainWindow(QMainWindow):
         background_interaction_active = self.browser_background_mode and (
             self.browser_interaction_active or self.page_loading or self.clipboard_translation_in_progress
             or bool(getattr(self, "response_followup_progress_call_id", ""))
+            or bool(getattr(self, "browser_automation_initializing", False))
         )
-        background_keepalive_active = (
-            self.browser_background_mode
-            and self._is_window_hidden_for_tray()
-            and self.settings.keep_chatgpt_in_background
-            and self.settings.monitoring_enabled
-        )
-        should_render_page = visible_main_window_render or background_interaction_active or background_keepalive_active
+        # A háttérben készenlét nem jelent folyamatos renderelést. A gyorsgomb,
+        # a betöltés és a válaszfigyelő a saját műveletük idejére ébresztik fel.
+        should_render_page = visible_main_window_render or background_interaction_active
         if should_render_page != getattr(self, "diagnostic_last_render_state", None):
             self.diagnostic_last_render_state = should_render_page
             log_event("browser.lifecycle_changed", active=should_render_page, background=self.browser_background_mode)
         frozen_state = getattr(QWebEnginePage.LifecycleState, "Frozen", QWebEnginePage.LifecycleState.Active)
 
         try:
-            page.setLifecycleState(
-                QWebEnginePage.LifecycleState.Active if should_render_page else frozen_state
-            )
-            page.setVisible(should_render_page)
+            if should_render_page:
+                page.setLifecycleState(QWebEnginePage.LifecycleState.Active)
+                page.setVisible(True)
+            else:
+                # A Qt csak láthatatlan oldalt enged Frozen állapotba tenni.
+                page.setVisible(False)
             self.browser.setUpdatesEnabled(should_render_page)
 
             if self.browser_background_mode and self._is_window_hidden_for_tray():
@@ -1470,12 +1519,19 @@ class MainWindow(QMainWindow):
                 self.browser.show()
             else:
                 self.browser.hide()
+            if not should_render_page:
+                # A láthatatlanná tett lap ajánlása már nem a saját láthatóságát
+                # tükrözi. Mikrofon/WebRTC vagy hang közben Active maradjon,
+                # háttérbeli rajzolás és saját frissítőtimer nélkül.
+                recommended = page.recommendedState()
+                page.setLifecycleState(QWebEnginePage.LifecycleState.Active
+                                       if recommended == QWebEnginePage.LifecycleState.Active else frozen_state)
         except RuntimeError:
             return
         finally:
             self._sync_browser_placeholder()
             self._update_browser_refresh_timer()
-            if hasattr(self, "home_panel"):
+            if hasattr(self, "drawer_panel"):
                 self._sync_shell_focus()
 
     def _should_keep_system_awake(self) -> bool:
@@ -1524,6 +1580,12 @@ class MainWindow(QMainWindow):
 
     def _perform_browser_keepalive(self) -> None:
         if not self._should_run_browser_keepalive():
+            self.browser_keepalive_failures = 0
+            return
+
+        page = self.browser.page()
+        if page.lifecycleState() != QWebEnginePage.LifecycleState.Active or not page.isVisible():
+            # Az üres készenlétet a periodikus ellenőrzés sem ébresztheti fel.
             self.browser_keepalive_failures = 0
             return
 
@@ -1685,7 +1747,10 @@ class MainWindow(QMainWindow):
     def _build_restart_command(self) -> list[str]:
         if getattr(sys, "frozen", False):
             restart_target = self._resolve_restart_executable_path()
-            return [str(restart_target), *sys.argv[1:]]
+            # Egy új beállításmentés új indulási ciklus. A korábbi egyszeri
+            # driver-újraindítás jelzője csak annak a ciklusnak szólt.
+            return [str(restart_target), *(argument for argument in sys.argv[1:]
+                                          if argument != "--nvidia-compat-restarted")]
 
         if sys.argv:
             return [sys.executable, *sys.argv]
@@ -1807,6 +1872,21 @@ class MainWindow(QMainWindow):
             ctypes.byref(rounded_corners),
             ctypes.sizeof(rounded_corners),
         )
+        # A natív címsor és keret ugyanazt a színt kapja, mint a felső sáv.
+        # A COLORREF 32 bites érték; a szürke csatornái azonosak.
+        header_color = ctypes.c_uint32(0x202020)
+        caption_text_color = ctypes.c_uint32(0xECECEC)
+        for attribute, color in (
+            (DWMWA_BORDER_COLOR, header_color),
+            (DWMWA_CAPTION_COLOR, header_color),
+            (DWMWA_TEXT_COLOR, caption_text_color),
+        ):
+            dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                attribute,
+                ctypes.byref(color),
+                ctypes.sizeof(color),
+            )
 
     def _handle_load_started(self) -> None:
         if self.operations_cancelled:
@@ -1860,6 +1940,7 @@ class MainWindow(QMainWindow):
                   ocr_enabled=self.settings.ocr_text_from_clipboard_image,
                   game_mode_enabled=self.settings.game_mode_enabled,
                   gpu_enabled=self.settings.webview_gpu_acceleration_enabled,
+                  nvidia_fix_enabled=self.settings.nvidia_mouse_lag_fix_enabled,
                   background=self.settings.keep_chatgpt_in_background)
         self.translation_overlay.set_overlay_opacity_percent(self.settings.overlay_opacity_percent)
         self._register_hotkeys()
@@ -1867,7 +1948,8 @@ class MainWindow(QMainWindow):
         self._sync_browser_host_mode()
         self._update_browser_refresh_timer(force=True)
         QTimer.singleShot(0, self._sync_browser_runtime_state)
-        if previous_settings.webview_gpu_acceleration_enabled != self.settings.webview_gpu_acceleration_enabled:
+        if (previous_settings.webview_gpu_acceleration_enabled != self.settings.webview_gpu_acceleration_enabled
+                or previous_settings.nvidia_mouse_lag_fix_enabled != self.settings.nvidia_mouse_lag_fix_enabled):
             self._set_live_status(self._hotkey_status_message("Beállítások elmentve. A program újraindul."))
             self._restart_application()
             return
@@ -1886,7 +1968,8 @@ class MainWindow(QMainWindow):
         self._sync_browser_host_mode()
         self._update_browser_refresh_timer(force=True)
         QTimer.singleShot(0, self._sync_browser_runtime_state)
-        if previous_settings.webview_gpu_acceleration_enabled != self.settings.webview_gpu_acceleration_enabled:
+        if (previous_settings.webview_gpu_acceleration_enabled != self.settings.webview_gpu_acceleration_enabled
+                or previous_settings.nvidia_mouse_lag_fix_enabled != self.settings.nvidia_mouse_lag_fix_enabled):
             self._set_live_status(self._hotkey_status_message("Az alapértékek vissza lettek állítva. A program újraindul."))
             self._restart_application()
             return
@@ -2295,14 +2378,18 @@ class MainWindow(QMainWindow):
         self.response_followup_waiting_for_first_response = False
         self.response_followup_diagnostic_call_id = ""
         self.response_followup_last_diagnostic_sequence = 0
-        if hasattr(self, "_sync_browser_host_mode"):
-            self._sync_browser_host_mode()
-            self._sync_browser_runtime_state()
-
         if not current_progress_call_id:
+            if hasattr(self, "_sync_browser_host_mode"):
+                self._sync_browser_host_mode()
+                self._sync_browser_runtime_state()
             return
 
+        previous_initializing = bool(getattr(self, "browser_automation_initializing", False))
+        self.browser_automation_initializing = True
         try:
+            if hasattr(self, "_sync_browser_host_mode"):
+                self._sync_browser_host_mode()
+                self._sync_browser_runtime_state()
             self._run_javascript(
                 f"""
                     (() => {{
@@ -2320,6 +2407,13 @@ class MainWindow(QMainWindow):
             )
         except Exception:
             pass
+        finally:
+            self.browser_automation_initializing = previous_initializing
+            # A távoli figyelő lezárása még az aktív oldalon fusson le.
+            # Az utolsó feladat után a lap ismét takarékos készenlétbe kerül.
+            if hasattr(self, "_sync_browser_host_mode"):
+                self._sync_browser_host_mode()
+                self._sync_browser_runtime_state()
 
     def _poll_response_followup_progress(self) -> None:
         progress_call_id = str(self.response_followup_progress_call_id or "").strip()
@@ -2700,22 +2794,23 @@ class MainWindow(QMainWindow):
         hidden_for_tray = self._is_window_hidden_for_tray()
         window_visible = self.isVisible() and not self.isMinimized()
 
-        if self.page_loading:
-            return UI_FRAME_INTERVAL_MS
+        if window_visible and not self.browser_background_mode:
+            # Az előtérben a Chromium saját kompozitora rajzol; nincs szükség
+            # egy külön, üresen ébredő Python frissítési időzítőre.
+            return 0
 
-        if self.browser_interaction_active or self.clipboard_translation_in_progress:
+        interaction_active = (
+            self.page_loading or self.browser_interaction_active or self.clipboard_translation_in_progress
+            or bool(getattr(self, "response_followup_progress_call_id", ""))
+            or bool(getattr(self, "browser_automation_initializing", False))
+        )
+        if interaction_active and self.browser_background_mode:
             if self.settings.game_mode_enabled and hidden_for_tray:
                 return GAME_MODE_BACKGROUND_FRAME_INTERVAL_MS
 
             return UI_FRAME_INTERVAL_MS
 
-        if window_visible and not self.browser_background_mode:
-            return IDLE_FRAME_INTERVAL_MS
-
-        if self.browser_background_mode:
-            return BACKGROUND_IDLE_FRAME_INTERVAL_MS
-
-        return SUSPENDED_FRAME_INTERVAL_MS
+        return 0
 
     def _update_browser_refresh_timer(self, *, force: bool = False) -> None:
         if not hasattr(self, "browser_refresh_timer"):
@@ -2723,7 +2818,13 @@ class MainWindow(QMainWindow):
 
         target_interval_ms = self._target_browser_refresh_interval_ms()
 
-        if not force and self.current_browser_refresh_interval_ms == target_interval_ms:
+        if target_interval_ms == 0:
+            self.current_browser_refresh_interval_ms = 0
+            self.browser_refresh_timer.stop()
+            return
+
+        if (not force and self.current_browser_refresh_interval_ms == target_interval_ms
+                and self.browser_refresh_timer.isActive()):
             return
 
         self.current_browser_refresh_interval_ms = target_interval_ms
@@ -2746,6 +2847,9 @@ class MainWindow(QMainWindow):
         if foreground_browser_visible:
             return
 
+        if self.current_browser_refresh_interval_ms == 0 or not self.browser.isVisible() or not self.browser.updatesEnabled():
+            return
+
         if hasattr(self, "frame_pulse_dot") and self.browser_background_mode and self.browser_background_host.isVisible():
             self.frame_pulse_state = not self.frame_pulse_state
             pulse_alpha = 1 if self.frame_pulse_state else 2
@@ -2756,9 +2860,6 @@ class MainWindow(QMainWindow):
                 f"background: rgba({pulse_red}, {pulse_green}, {pulse_blue}, {pulse_alpha});"
             )
             self.frame_pulse_dot.repaint()
-
-        if not self.browser.isVisible() or not self.browser.updatesEnabled():
-            return
 
         self.browser.update()
 
@@ -3413,6 +3514,7 @@ class MainWindow(QMainWindow):
         self.copy_response_to_clipboard.setChecked(settings.copy_response_to_clipboard)
         self.ocr_text_from_clipboard_image.setChecked(settings.ocr_text_from_clipboard_image)
         self.webview_gpu_acceleration_enabled.setChecked(settings.webview_gpu_acceleration_enabled)
+        self.nvidia_mouse_lag_fix_enabled.setChecked(settings.nvidia_mouse_lag_fix_enabled)
         self.type_out_hotkey_enabled.setChecked(settings.type_out_hotkey_enabled)
         self.screen_clip_hotkey_enabled.setChecked(settings.screen_clip_hotkey_enabled)
         self.quick_chat_hotkey_enabled.setChecked(settings.quick_chat_hotkey_enabled)
@@ -3436,6 +3538,7 @@ class MainWindow(QMainWindow):
             copy_response_to_clipboard=self.copy_response_to_clipboard.isChecked(),
             ocr_text_from_clipboard_image=self.ocr_text_from_clipboard_image.isChecked(),
             webview_gpu_acceleration_enabled=self.webview_gpu_acceleration_enabled.isChecked(),
+            nvidia_mouse_lag_fix_enabled=self.nvidia_mouse_lag_fix_enabled.isChecked(),
             type_out_hotkey_enabled=self.type_out_hotkey_enabled.isChecked(),
             type_out_hotkey=self._read_hotkey_value(self.type_out_hotkey, str(DEFAULT_SETTINGS["typeOutHotkey"])),
             screen_clip_hotkey_enabled=self.screen_clip_hotkey_enabled.isChecked(),
@@ -3449,143 +3552,20 @@ class MainWindow(QMainWindow):
 
     def _set_drawer_open(self, opened: bool) -> None:
         self.drawer_open = opened
+        self.drawer_panel.setVisible(opened)
+        self._layout_overlay_widgets()
         if opened:
-            self.drawer_panel.show()
-            self._layout_overlay_widgets()
             self.drawer_panel.raise_()
             self.close_drawer_button.setFocus(Qt.FocusReason.OtherFocusReason)
         else:
-            self.drawer_panel.hide()
-            self._select_navigation(self._shell_page)
-            self._layout_overlay_widgets()
             self.menu_button.setFocus(Qt.FocusReason.OtherFocusReason)
-        if opened:
-            self._select_navigation("settings")
-
-    def _select_navigation(self, section: str) -> None:
-        for key, control in self.nav_buttons.items():
-            control.setChecked(key == section)
-
-    def _show_home(self) -> None:
-        self._shell_page = "home"
-        self.drawer_open = False
-        self.drawer_panel.hide()
-        self.home_panel.show()
-        self.home_panel.raise_()
-        self._select_navigation("home")
-        self._layout_overlay_widgets()
 
     def _show_browser(self) -> None:
-        self._shell_page = "browser"
-        self.drawer_open = False
-        self.drawer_panel.hide()
-        self.home_panel.hide()
-        self._select_navigation("")
-        self._layout_overlay_widgets()
+        self._set_drawer_open(False)
         self.browser.setFocus(Qt.FocusReason.OtherFocusReason)
 
-    def _navigate_shell(self, section: str) -> None:
-        if section == "home":
-            self._show_home()
-        elif section == "settings":
-            self._set_drawer_open(True)
-        elif section == "discover":
-            self._show_home()
-            self._select_navigation("discover")
-            self.suggestion_cards[0].setFocus(Qt.FocusReason.OtherFocusReason)
-        elif section in {"history", "profile"}:
-            self._show_browser()
-            self._select_navigation(section)
-            message = ("Az előzmények a ChatGPT bal oldali beszélgetéslistájában érhetők el."
-                       if section == "history" else "A profil és az előfizetés a ChatGPT fiókmenüjében érhető el.")
-            self._set_live_status(message)
-            if not self._is_chatgpt_url(self.browser.url().toString()):
-                self.open_chatgpt(show_error_dialog=True)
-
-    def _set_home_mode(self, mode: str) -> None:
-        self._home_mode = "work" if mode == "work" else "chat"
-        self.chat_tab_button.setChecked(self._home_mode == "chat")
-        self.work_tab_button.setChecked(self._home_mode == "work")
-        self.home_question.setText("Mit fordítsak le neked?" if self._home_mode == "work" else "Miben segíthetek ma?")
-        self.home_input.setPlaceholderText("Írd be a fordítandó játékszöveget..." if self._home_mode == "work" else "Kérdezz a ChatGPT-től...")
-
-    def _use_suggestion(self, index: int) -> None:
-        suggestions = ("", "Foglald össze ennek a patch note-nak a főbb változásait:\n",
-                       "Adj stratégiai tippeket ehhez a játékhoz és boss fight-hoz: ",
-                       "Magyarázd el ennek a játékszakszónak a jelentését: ")
-        if not 0 <= index < len(suggestions):
-            return
-        self._set_home_mode("work" if index == 0 else "chat")
-        self.home_input.setText(suggestions[index])
-        self.home_input.setFocus(Qt.FocusReason.OtherFocusReason)
-
-    def _submit_home_text(self) -> None:
-        text = self.home_input.text().strip()
-        if not text:
-            self.home_input.setFocus(Qt.FocusReason.OtherFocusReason)
-            return
-        if self.browser_interaction_active or self.clipboard_translation_in_progress:
-            self._set_live_status("Már fut egy másik ChatGPT művelet, várd meg amíg befejeződik.")
-            return
-        if self._home_mode == "work":
-            if not self._read_settings_from_form().monitoring_enabled:
-                self._set_live_status("A program nincs aktív állapotban, ezért a gyors chat nem küldhető el.")
-                return
-            self.home_send_button.setEnabled(False)
-            self._show_browser()
-            try:
-                self._process_quick_chat_translation(text)
-                if self.translation_result_complete and self.translation_result_request_id == self.latest_translation_request_id:
-                    self.home_input.clear()
-            finally:
-                self.home_send_button.setEnabled(True)
-        else:
-            self._send_home_prompt(text)
-
-    def _send_home_prompt(self, text: str) -> None:
-        self.settings = self._read_settings_from_form()
-        self._begin_browser_interaction()
-        self.home_send_button.setEnabled(False)
-        try:
-            self._set_live_status("Az üzenet elküldése folyamatban.")
-            self._ensure_chatgpt_page_loaded(reload_if_open=False)
-            self._ensure_automation_ready()
-            self._execute_delivery({
-                "prompt": text, "imageDataUrl": "", "imageMimeType": "", "imageFilename": "",
-                "autoSubmit": True, "copyResponseToClipboard": False, "waitForResponse": False,
-                "pageReadyTimeoutMs": self.settings.page_ready_timeout_ms,
-                "responseTimeoutMs": DEFAULT_RESPONSE_TIMEOUT_MS,
-            })
-            self.home_input.clear()
-            self._show_browser()
-            self._save_last_run_status("Az üzenet elküldve a ChatGPT-nek.")
-        except BrowserOperationCancelled:
-            pass
-        except Exception as error:
-            log_exception("home.send_failed", error, text_length=len(text))
-            self._set_live_status(str(error))
-        finally:
-            self.home_send_button.setEnabled(True)
-            self._end_browser_interaction()
-
-    def _show_capture_menu(self) -> None:
-        menu = QMenu(self)
-        action = menu.addAction("Képkivágás fordítása")
-        action.triggered.connect(self._trigger_screen_clip_hotkey)
-        menu.exec(self.home_attach_button.mapToGlobal(QPoint(0, self.home_attach_button.height())))
-
-    def _open_voice_input(self) -> None:
-        self._show_browser()
-        if not self._is_chatgpt_url(self.browser.url().toString()):
-            self.open_chatgpt(show_error_dialog=True)
-        self._set_live_status("A hangbevitel a ChatGPT üzenetmezőjének mikrofon gombjával indítható.")
-
-    def _set_browser_blur(self, enabled: bool) -> None:
-        # A teljes beállítási felület elfedi a webnézetet; nincs drága rendererelmosás.
-        return
-
     def _sync_shell_focus(self) -> None:
-        covered = self._shell_page == "home" or self.drawer_open
+        covered = self.drawer_open
         proxy = self.browser.focusProxy()
         if proxy is not None:
             saved = proxy.property("gamerTranslatorFocusPolicy")
@@ -3596,39 +3576,17 @@ class MainWindow(QMainWindow):
         self.browser.setFocusPolicy(Qt.FocusPolicy.NoFocus if covered else Qt.FocusPolicy.StrongFocus)
 
     def _layout_overlay_widgets(self) -> None:
-        if not hasattr(self, "content_surface") or not hasattr(self, "home_panel"):
+        if not hasattr(self, "content_surface") or not hasattr(self, "drawer_panel"):
             return
         rect = self.content_surface.rect()
-        self.home_panel.setGeometry(rect)
         self.drawer_panel.setGeometry(rect)
-        compact = rect.height() < 660
-        layout = self.home_panel.layout()
-        layout.setContentsMargins(24 if compact else 36, 14 if compact else 20,
-                                  24 if compact else 36, 14 if compact else 22)
-        self.home_composer.setFixedWidth(min(930, max(300, rect.width() - 100)))
-        self.home_composer.setFixedHeight(76 if compact else 86)
-        self.home_composer.setStyleSheet("#homeComposer { border-radius: 38px; }" if compact else "#homeComposer { border-radius: 43px; }")
-        self.home_cards_container.setFixedWidth(min(1290, max(300, rect.width() - (48 if compact else 144))))
-        self.home_logo.setFixedSize(44 if compact else 84, 44 if compact else 84)
-        from .design_widgets import icon
-        self.home_logo.setPixmap(icon("chatgpt", size=44 if compact else 84).pixmap(44 if compact else 84, 44 if compact else 84))
-        self.home_greeting.setStyleSheet("font-size: 28px; font-weight: 700;" if compact else "font-size: 40px; font-weight: 700;")
-        self.home_question.setStyleSheet("font-size: 22px;" if compact else "font-size: 26px;")
-        self.home_hint.setStyleSheet("font-size: 13px; color: #b2b2b2;" if compact else "font-size: 17px; color: #b2b2b2;")
-        for index, small, full in ((3, 10, 18), (5, 2, 8), (7, 3, 5), (9, 18, 38), (11, 16, 28), (15, 8, 30)):
-            layout.itemAt(index).spacerItem().changeSize(0, small if compact else full)
-        layout.invalidate()
-        self.home_top_caption.setGeometry(max(0, rect.width() - 166), 48, 160, 74)
-        self.home_bottom_caption.setGeometry(38, max(0, rect.height() - 102), 260, 80)
-        self.home_top_caption.setVisible(not compact)
-        self.home_bottom_caption.setVisible(not compact)
         self.settings_columns.setDirection(QBoxLayout.Direction.TopToBottom if rect.width() < 1200 else QBoxLayout.Direction.LeftToRight)
         self.save_settings_button.setFixedWidth(200 if rect.width() < 1200 else 284)
         self.reset_defaults_button.setFixedWidth(218 if rect.width() < 1200 else 288)
-        if self._shell_page == "home":
-            self.home_panel.raise_()
         if self.drawer_open:
             self.drawer_panel.raise_()
+        self.content_edge.setGeometry(rect)
+        self.content_edge.raise_()
         if hasattr(self, "frame_pulse_dot"):
             self.frame_pulse_dot.move(max(0, rect.width() - 1), max(0, rect.height() - 1))
         self._sync_browser_placeholder()
@@ -3638,29 +3596,36 @@ class MainWindow(QMainWindow):
         if self.page_loading:
             self._wait_for_page_load(self.settings.page_ready_timeout_ms + 5000)
 
-        self._sync_browser_host_mode()
-        self._sync_browser_runtime_state()
+        previous_initializing = bool(getattr(self, "browser_automation_initializing", False))
+        self.browser_automation_initializing = True
+        try:
+            self._sync_browser_host_mode()
+            self._sync_browser_runtime_state()
 
-        ready = self._run_javascript(
-            f"typeof window.__gamerTranslatorDeliver === 'function' && window.__gamerTranslatorDeliverVersion === '{AUTOMATION_SCRIPT_VERSION}';",
-            timeout_ms=5000,
-        )
+            ready = self._run_javascript(
+                f"typeof window.__gamerTranslatorDeliver === 'function' && window.__gamerTranslatorDeliverVersion === '{AUTOMATION_SCRIPT_VERSION}';",
+                timeout_ms=5000,
+            )
 
-        if ready is True:
+            if ready is True:
+                self.automation_ready = True
+                return
+
+            log_event("browser.automation_injected", source="application_world")
+            self._run_javascript(self.automation_script, timeout_ms=10000)
+            ready = self._run_javascript(
+                f"typeof window.__gamerTranslatorDeliver === 'function' && window.__gamerTranslatorDeliverVersion === '{AUTOMATION_SCRIPT_VERSION}';",
+                timeout_ms=5000,
+            )
+
+            if ready is not True:
+                raise RuntimeError("Nem sikerült betölteni az oldalautomatizálást.")
+
             self.automation_ready = True
-            return
-
-        log_event("browser.automation_injected", source="application_world")
-        self._run_javascript(self.automation_script, timeout_ms=10000)
-        ready = self._run_javascript(
-            f"typeof window.__gamerTranslatorDeliver === 'function' && window.__gamerTranslatorDeliverVersion === '{AUTOMATION_SCRIPT_VERSION}';",
-            timeout_ms=5000,
-        )
-
-        if ready is not True:
-            raise RuntimeError("Nem sikerült betölteni az oldalautomatizálást.")
-
-        self.automation_ready = True
+        finally:
+            self.browser_automation_initializing = previous_initializing
+            self._sync_browser_host_mode()
+            self._sync_browser_runtime_state()
 
     def _execute_delivery(
         self,

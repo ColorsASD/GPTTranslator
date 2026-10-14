@@ -507,6 +507,7 @@ class HookCloseTests(unittest.TestCase):
                 self._restore_system_sleep_state = Mock()
                 self._shutdown_background_executor = Mock()
                 self.browser_background_host = Mock()
+                self.browser_permissions = Mock()
                 self.translation_overlay = Mock()
                 self.quick_chat_overlay = Mock()
 
@@ -522,6 +523,7 @@ class HookCloseTests(unittest.TestCase):
             self.assertEqual(window.mouse_recording_buttons, set())
             window.store.save_settings.assert_called_once()
             window.browser_background_host.close.assert_called_once_with()
+            window.browser_permissions.cancel_pending.assert_called_once_with()
             window.deleteLater()
             QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 

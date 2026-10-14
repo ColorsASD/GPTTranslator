@@ -42,9 +42,12 @@ class SettingsStoreTests(unittest.TestCase):
                 self.assertEqual(store.load_last_run_status(), LastRunStatus())
 
     def test_false_string_does_not_enable_monitoring_or_clipboard(self) -> None:
-        settings = AppSettings.from_dict({"monitoringEnabled": "false", "copyResponseToClipboard": " FALSE "})
+        settings = AppSettings.from_dict({"monitoringEnabled": "false", "copyResponseToClipboard": " FALSE ",
+                                          "nvidiaMouseLagFixEnabled": "false"})
         self.assertFalse(settings.monitoring_enabled)
         self.assertFalse(settings.copy_response_to_clipboard)
+        self.assertFalse(settings.nvidia_mouse_lag_fix_enabled)
+        self.assertTrue(AppSettings.from_dict({}).nvidia_mouse_lag_fix_enabled)
 
     def test_settings_are_bounded_before_qt_receives_them(self) -> None:
         settings = AppSettings.from_dict({"overlayOpacityPercent": -30, "overlayDurationSeconds": 10**50, "pageReadyTimeoutMs": -1})

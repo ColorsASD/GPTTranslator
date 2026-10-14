@@ -68,13 +68,14 @@ _BOOL_FIELDS = frozenset({
     "stable", "has_identity", "auto_submit", "copy_response", "late", "ok",
     "request_user_bound", "last_user_matches_request", "response_user_matches_request",
     "assistant_identity_new",
+    "nvidia_fix_enabled", "changed", "verified",
 })
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _KNOWN_FILES = {
     os.path.normcase(str(_PACKAGE_DIR / name)): name
     for name in (
         "diagnostics.py", "main_window.py", "settings_store.py", "defaults.py",
-        "hotkeys.py", "ocr_service.py", "self_test.py", "__init__.py",
+        "hotkeys.py", "ocr_service.py", "self_test.py", "nvidia_compat.py", "browser_permissions.py", "__init__.py",
     )
 }
 _KNOWN_FILES[os.path.normcase(str(_PACKAGE_DIR.parent / "main.py"))] = "main.py"

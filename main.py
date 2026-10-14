@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -226,9 +227,44 @@ def _run_with_diagnostics(root_dir: Path, mode: str, runner: Callable[[], int]) 
         shutdown_diagnostics()
 
 
-def _run_normal() -> int:
+def _configure_nvidia_compatibility(settings: AppSettings) -> dict:
+    # A fejlesztői Python és a tesztmód nem módosíthat driverprofilt.
+    if not getattr(sys, "frozen", False):
+        return {"status": "source_run", "changed": False, "verified": False}
+    try:
+        from gamer_translator.nvidia_compat import configure_nvidia_compatibility
+        result = configure_nvidia_compatibility(
+            Path(sys.executable), enabled=settings.nvidia_mouse_lag_fix_enabled,
+            state_dir=default_app_data_dir() / "nvidia-compat",
+        )
+    except Exception as error:
+        log_exception("nvidia.compatibility_failed", error)
+        result = {"status": "initialization_failed", "changed": False, "verified": False}
+    log_event("nvidia.compatibility_configured", state=result.get("status", "unknown"),
+              reason=result.get("reason", "none"),
+              code=result.get("error_code", 0), nvidia_fix_enabled=settings.nvidia_mouse_lag_fix_enabled,
+              changed=bool(result.get("changed")), verified=bool(result.get("verified")))
+    return result
+
+
+def _run_normal(*, nvidia_compat_restarted: bool = False) -> int:
     configure_webengine_environment()
     log_event("app.webengine_configured", mode="normal")
+
+    compatibility = _configure_nvidia_compatibility(SettingsStore().load_settings())
+    if compatibility.get("changed") and compatibility.get("verified") and not nvidia_compat_restarted:
+        # A grafikus driver a folyamat indulásakor gyorsítótárazhatja a profilt.
+        # Az első módosítás után új folyamat indul, még az ablak létrehozása előtt.
+        command = [sys.executable, *(argument for argument in sys.argv[1:]
+                                    if argument != "--nvidia-compat-restarted"), "--nvidia-compat-restarted"]
+        try:
+            subprocess.Popen(command, cwd=str(Path(sys.executable).parent), close_fds=True,
+                             env={**os.environ, "PYINSTALLER_RESET_ENVIRONMENT": "1"})
+            log_event("nvidia.compatibility_restarted", changed=True, verified=True)
+            return 0
+        except OSError as error:
+            # Egy sikertelen újraindítás miatt az alkalmazás még elindulhat.
+            log_exception("nvidia.compatibility_restart_failed", error)
 
     from gamer_translator.main_window import MainWindow
 
@@ -255,6 +291,7 @@ def main() -> int:
     mode.add_argument("--staging", action="store_true", help="Friss tesztprofil, rendszerintegrációk nélkül.")
     parser.add_argument("--self-test-duration", type=int, default=60, help="Az offline ismételt teszt hossza másodpercben (1–3600).")
     parser.add_argument("--self-test-model-dir", type=Path, help="Helyi, ellenőrzött OCR-modellek a csomagolt motorok öntesztjéhez.")
+    parser.add_argument("--nvidia-compat-restarted", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if not 1 <= args.self_test_duration <= 3600:
         parser.error("A teszt időtartama 1 és 3600 másodperc közötti legyen.")
@@ -273,7 +310,8 @@ def main() -> int:
         with tempfile.TemporaryDirectory(prefix="gamer-translator-test-diagnostics-") as directory:
             return _run_with_diagnostics(Path(directory), "self_test" if args.self_test_report else "staging", run_test_mode)
 
-    return _run_with_diagnostics(default_app_data_dir(), "normal", _run_normal)
+    return _run_with_diagnostics(default_app_data_dir(), "normal",
+                                 lambda: _run_normal(nvidia_compat_restarted=args.nvidia_compat_restarted))
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 APP_NAME = "Gamer Translator"
-APP_VERSION = "5.17"
+APP_VERSION = "5.18"
 WINDOW_TITLE = APP_NAME
 CHATGPT_URL = "https://chatgpt.com/"
 DEFAULT_RESPONSE_TIMEOUT_MS = 180000
@@ -173,6 +173,7 @@ DEFAULT_SETTINGS = {
     "copyResponseToClipboard": True,
     "ocrTextFromClipboardImage": True,
     "webViewGpuAccelerationEnabled": True,
+    "nvidiaMouseLagFixEnabled": True,
     "typeOutHotkeyEnabled": True,
     "typeOutHotkey": "Alt+V",
     "screenClipHotkeyEnabled": True,
