@@ -6,7 +6,7 @@ A program neve GPTTranslator lett. Az átnevezés a főablakra, a beállítások
 
 Az új ikon két, fordítást jelképező beszédbuborékból áll, ezüst és grafitszürke színekkel. Az [ikonkészlet](../gpttranslator/assets/) PNG-fájljai és a tíz méretet tartalmazó ICO ugyanabból az átlátszó hátterű képből készültek. A [generálási prompt](../gpttranslator/assets/icon-prompt.txt) az assetek mellett szerepel.
 
-A program verziója 6.0 maradt. Az átnevezéshez nem készült új release vagy tag. A korábbi kiadások dokumentumai és mérési bizonyítékai bájtpontosan a [történeti archívumba](history/README.md) kerültek; a jegyzék 82 fájljának hash-ellenőrzése sikeres.
+Ez az átnevezési ellenőrzés még a 6.0 alkalmazásverzióval készült, külön release és tag nélkül. Az ezt követő 6.1 kiadás végleges buildjének ellenőrzése a [kiadási jelentésben](release-v6.1.md) szerepel. A korábbi kiadások dokumentumai és mérési bizonyítékai bájtpontosan a [történeti archívumba](history/README.md) kerültek; a jegyzék 82 fájljának hash-ellenőrzése sikeres.
 
 ## Adatok és telepített példány
 

@@ -98,6 +98,8 @@ Az átnevezés utáni első indítás előtt teljesen zárd be a régi programot
 
 Az átnevezés, az új ikon, a profilátvétel és az EXE ellenőrzésének eredménye az [átnevezési jelentésben](docs/rebranding.md) szerepel.
 
+A végleges v6.1 kiadás tesztjeit, EXE-hash-ét és csomagellenőrzését a [kiadási jelentés](docs/release-v6.1.md) rögzíti.
+
 ## Használat
 
 1. Indítsd el a programot; a főablakban közvetlenül a `chatgpt.com` oldal nyílik meg.

@@ -1,6 +1,6 @@
 # Szürke felület
 
-Alkalmazásverzió: `6.0`.
+Alkalmazásverzió: `6.1`.
 
 ## Jelenlegi felépítés
 

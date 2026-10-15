@@ -1,0 +1,135 @@
+{
+  "checkedAt": "2026-10-15T21:25:17.792426+00:00",
+  "appName": "GPTTranslator",
+  "appVersion": "6.1",
+  "releaseTag": "v6.1",
+  "scope": "final versioned Windows release build; isolated offline validation",
+  "pythonTests": {
+    "passed": 462,
+    "failed": 0,
+    "elapsedSeconds": 119.911
+  },
+  "javascriptTests": {
+    "passed": 69,
+    "failed": 0
+  },
+  "buildChecks": {
+    "passed": 50,
+    "total": 50,
+    "checks": {
+      "branding:CompanyName": true,
+      "branding:FileDescription": true,
+      "branding:InternalName": true,
+      "branding:OriginalFilename": true,
+      "branding:ProductName": true,
+      "branding:FileVersion": true,
+      "branding:ProductVersion": true,
+      "branding:application icon": true,
+      "source:main.py": true,
+      "source:gpttranslator/browser_permissions.py": true,
+      "source:gpttranslator/defaults.py": true,
+      "source:gpttranslator/design_theme.py": true,
+      "source:gpttranslator/design_ui.py": true,
+      "source:gpttranslator/design_widgets.py": true,
+      "source:gpttranslator/diagnostics.py": true,
+      "source:gpttranslator/hotkeys.py": true,
+      "source:gpttranslator/main_window.py": true,
+      "source:gpttranslator/nvidia_compat.py": true,
+      "source:gpttranslator/ocr_service.py": true,
+      "source:gpttranslator/self_test.py": true,
+      "source:gpttranslator/settings_store.py": true,
+      "asset:gpttranslator/automation.js": true,
+      "asset:gpttranslator/assets/icon-128.png": true,
+      "asset:gpttranslator/assets/check.svg": true,
+      "runtime:QtWebEngineProcess.exe": true,
+      "runtime:Qt6WebEngineCore.dll": true,
+      "runtime:Qt6Svg.dll": true,
+      "runtime:QtSvg.pyd": true,
+      "runtime:qtwebengine_resources.pak": true,
+      "runtime:icudtl.dat": true,
+      "runtime:qwindows.dll": true,
+      "runtime:onnxruntime_pybind11_state.pyd": true,
+      "runtime:Windows OCR": true,
+      "runtime:WinRT runtime": true,
+      "runtime:RapidOCR data": true,
+      "runtime:wordfreq Hungarian": true,
+      "runtime:wordfreq English": true,
+      "runtime:verified python3.dll": true,
+      "runtime:verified python313.dll": true,
+      "runtime:verified _ssl.pyd": true,
+      "runtime:verified libssl-3.dll": true,
+      "runtime:verified libcrypto-3.dll": true,
+      "runtime:verified PySide6/QtCore.pyd": true,
+      "runtime:verified PySide6/Qt6Core.dll": true,
+      "runtime:verified PySide6/pyside6.abi3.dll": true,
+      "runtime:verified shiboken6/Shiboken.pyd": true,
+      "runtime:verified shiboken6/shiboken6.abi3.dll": true,
+      "runtime:Windows ICU not bundled": true,
+      "runtime:Qt ICU exports available from Windows": true,
+      "PE:Windows x64 GUI": true
+    }
+  },
+  "executable": {
+    "assetName": "GPTTranslator-v6.1.exe",
+    "bytes": 381681788,
+    "sha256": "543ca83e8333e2968d3c5cbec14860c3fed3037dd89801919ba41f72e7a5636a",
+    "authenticodeStatus": "NotSigned"
+  },
+  "sourceSha256": {
+    "main.py": "d678f0c1d9b1cf3203ab0fec6558f09d3655e953830ff7fee8e9bc095ec48823",
+    "gpttranslator/browser_permissions.py": "783cc30f9e1817cd1bc11aca9d67ef2dd1a891e6d02e0a61cd75b6bde126831a",
+    "gpttranslator/defaults.py": "70823338397c1782285d75de81894544bd45e0d220b582c4813f1ae66e7efa04",
+    "gpttranslator/design_theme.py": "d6839446262ee0e6a18ffa3db552a740bea0c5f6c70d3ec498f516d5d7fe338e",
+    "gpttranslator/design_ui.py": "ce36d7f4fd904f9f71bcabdc82131a5e08ca6361fa861d3f7d12b0c83fe32389",
+    "gpttranslator/design_widgets.py": "4c20d6375fb2bfd1c0915304961749665ff075bc62104206d9b7239d6b4938b4",
+    "gpttranslator/diagnostics.py": "995d3437ada232bbe45cd057e376c9c124014bd3f0fed9ca59fffb911ce7e7b6",
+    "gpttranslator/hotkeys.py": "0cc11e1ff7470ce8ff9361a01a94f54877a5b2a5ff824852ea6e83c73a5bfa19",
+    "gpttranslator/main_window.py": "06a546a1687177f89dd728b39bfcb8a3fb30bee4313e682f3ecd51e42d27b686",
+    "gpttranslator/nvidia_compat.py": "6d9157ef8cfcc55f1dec61475c2dad3927369085f08a3bbe8919349060c14143",
+    "gpttranslator/ocr_service.py": "7b4a05c7dfbac4df6f045c64ba972d9e0376371615af52391f6ac5ef92a52aa0",
+    "gpttranslator/self_test.py": "2fd89ffd8243e21447ed758ae5e76d71e4f419e97242faf544c65508f560f34e",
+    "gpttranslator/settings_store.py": "df714329616353155c198b4e63bf6686ea6d123bc3c7e00a87bf83c61f942aa0"
+  },
+  "sourceComparisonToRebrandBuild": {
+    "changedModules": [
+      "gpttranslator/defaults.py"
+    ],
+    "versionOnlyChange": true
+  },
+  "frozenSelfTest": {
+    "frozen": true,
+    "passed": true,
+    "checks": {
+      "window_and_webengine_start": true,
+      "isolated_profile_and_clipboard": true,
+      "repeated_quick_chat_response_storage_overlay_hide_show": true,
+      "clipboard_requires_screen_clip_hotkey": true,
+      "png_attachment_native_pipeline": true,
+      "role_heading_image_response_binding": true,
+      "clickable_image_response_binding": true,
+      "unmarked_user_heading_image_response_binding": true,
+      "modern_image_then_text_current_response_storage": true,
+      "no_network_requests_or_native_hotkeys": true,
+      "native_rapidocr_and_windows_inference": true,
+      "clean_window_shutdown": true
+    },
+    "cycles": 109,
+    "modernImageRequests": 3,
+    "modernTextRequests": 1,
+    "ocr": {
+      "expected": "Hello gamer",
+      "rapidocr": "Hello gamer",
+      "windows": "Hello gamer"
+    },
+    "elapsedSeconds": 125.542,
+    "python": "3.13.15",
+    "openssl": "OpenSSL 3.0.21 9 Jun 2026",
+    "qt": "6.11.2"
+  },
+  "validation": {
+    "pipCheck": true,
+    "compileall": true,
+    "nodeCheck": true,
+    "gitDiffCheck": true
+  }
+}
