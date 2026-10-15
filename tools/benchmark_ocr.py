@@ -20,7 +20,7 @@ import unicodedata
 from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from gamer_translator.ocr_service import OCRService
+from gpttranslator.ocr_service import OCRService
 
 
 SAMPLES = (
@@ -129,11 +129,11 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     image_dir = args.output.parent / f"{args.output.stem}-images"
     image_dir.mkdir(exist_ok=True)
-    source_path = Path(__file__).resolve().parents[1] / "gamer_translator" / "ocr_service.py"
+    source_path = Path(__file__).resolve().parents[1] / "gpttranslator" / "ocr_service.py"
     service_type = BenchmarkService
     if args.service_source:
         source_path = args.service_source.resolve(strict=True)
-        spec = importlib.util.spec_from_file_location("gamer_translator._benchmark_reference", source_path)
+        spec = importlib.util.spec_from_file_location("gpttranslator._benchmark_reference", source_path)
         reference = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = reference
         spec.loader.exec_module(reference)

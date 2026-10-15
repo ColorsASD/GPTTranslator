@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
-from gamer_translator import nvidia_compat
+from gpttranslator import nvidia_compat
 
 
 VRR_ID = 0x10A879CF
@@ -19,7 +19,7 @@ VRR_ID = 0x10A879CF
 
 def application(path: Path | str) -> dict:
     return {
-        "path": str(path), "friendly": "Gamer Translator", "predefined": False,
+        "path": str(path), "friendly": "GPTTranslator", "predefined": False,
         "launcher": "", "file_in_folder": "", "flags": 0, "command_line": "",
     }
 
@@ -133,7 +133,7 @@ class NvidiaCompatibilityTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
-        self.executable = self.root / "Program mappa" / "Gamer Translator.exe"
+        self.executable = self.root / "Program mappa" / "GPTTranslator.exe"
         self.executable.parent.mkdir()
         self.executable.write_bytes(b"MZ offline test fixture")
         self.state_dir = self.root / "driver-state"
@@ -148,6 +148,119 @@ class NvidiaCompatibilityTests(unittest.TestCase):
     def own_profile(self) -> dict:
         self.assertEqual(len(self.backend.profiles), 1)
         return next(iter(self.backend.profiles.values()))
+
+    def seed_legacy_profile(self, executable: Path | None = None) -> tuple[dict, Path]:
+        executable = executable or self.executable
+        self.assertEqual(self.configure(executable=executable)["status"], "applied")
+        profile = next(item for item in self.backend.profiles.values()
+                       if canonical_path(item["applications"][0]["path"]) == canonical_path(executable))
+        suffix = nvidia_compat.profile_name_for(executable).removeprefix(nvidia_compat.PROFILE_PREFIX)
+        profile["name"] = nvidia_compat.LEGACY_PROFILE_PREFIX + suffix
+        profile["applications"][0]["friendly"] = nvidia_compat.LEGACY_FRIENDLY_NAME
+        state_path = self.state_dir / (suffix + ".json")
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state.update(created_by=nvidia_compat.LEGACY_CREATOR, profile_name=profile["name"])
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+        self.backend.operations.clear()
+        return profile, state_path
+
+    def test_legacy_owned_profile_is_recreated_with_new_profile_and_friendly_names(self):
+        _legacy, state_path = self.seed_legacy_profile()
+        result = self.configure()
+        self.assertTrue(result["verified"]); self.assertTrue(result["changed"])
+        self.assertEqual(result["legacy_profiles_migrated"], 1)
+        profile = self.own_profile()
+        self.assertEqual(profile["name"], nvidia_compat.profile_name_for(self.executable))
+        self.assertEqual(profile["applications"], [application(self.executable.resolve())])
+        self.assertEqual(profile["settings"], [setting()])
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        self.assertEqual(state["created_by"], nvidia_compat.CREATOR)
+        self.assertEqual(state["profile_name"], profile["name"])
+        self.assertEqual([op[0] for op in self.backend.writes()], ["delete", "create", "set", "save"])
+        self.backend.operations.clear()
+        self.assertEqual(self.configure()["status"], "already_applied")
+        self.assertEqual(self.backend.writes(), [])
+
+    def test_old_executable_owned_profile_is_rebranded_before_new_executable_is_configured(self):
+        old_executable = self.executable.with_name("Gamer Translator.exe")
+        old_executable.write_bytes(b"MZ legacy fixture")
+        self.seed_legacy_profile(old_executable)
+        result = self.configure()
+        self.assertEqual(result["status"], "applied")
+        self.assertEqual(result["legacy_profiles_migrated"], 1)
+        self.assertEqual(len(self.backend.profiles), 2)
+        for profile in self.backend.profiles.values():
+            self.assertTrue(profile["name"].startswith(nvidia_compat.PROFILE_PREFIX))
+            self.assertEqual(profile["applications"][0]["friendly"], "GPTTranslator")
+
+    def test_legacy_manual_or_modified_profile_is_never_migrated(self):
+        for change in ("no_journal", "friendly", "extra_application", "extra_setting", "creator"):
+            with self.subTest(change=change):
+                self.backend = FakeDRS()
+                self.state_dir = self.root / change
+                profile, state_path = self.seed_legacy_profile()
+                if change == "no_journal": state_path.unlink()
+                elif change == "friendly": profile["applications"][0]["friendly"] = "Személyes név"
+                elif change == "extra_application": profile["applications"].append(application(self.root / "other.exe"))
+                elif change == "extra_setting": profile["settings"].append(setting(3, setting_id=0x12345678))
+                else:
+                    state = json.loads(state_path.read_text(encoding="utf-8")); state["created_by"] = "someone_else"
+                    state_path.write_text(json.dumps(state), encoding="utf-8")
+                before = self.backend.snapshot()
+                self.configure()
+                self.assertEqual(self.backend.snapshot(), before)
+                self.assertEqual(self.backend.writes(), [])
+
+    def test_legacy_profile_migration_never_overwrites_existing_new_name(self):
+        self.seed_legacy_profile()
+        self.backend.add_profile(self.root / "personal.exe", value=2, name=nvidia_compat.profile_name_for(self.executable))
+        before = self.backend.snapshot()
+        result = self.configure()
+        self.assertEqual(result["legacy_profiles_skipped"], 1)
+        self.assertEqual(self.backend.snapshot(), before); self.assertEqual(self.backend.writes(), [])
+
+    def test_disabled_legacy_fix_removes_only_the_owned_profile_without_creating_new_one(self):
+        self.seed_legacy_profile()
+        result = self.configure(enabled=False)
+        self.assertEqual(result["status"], "disabled"); self.assertTrue(result["changed"])
+        self.assertEqual(self.backend.profiles, {})
+        self.assertEqual([op[0] for op in self.backend.writes()], ["delete", "save"])
+
+    def test_legacy_migration_save_failure_before_apply_is_retryable(self):
+        _profile, state_path = self.seed_legacy_profile()
+        self.backend.save_modes = ["fail_before"]
+        self.assertEqual(self.configure()["status"], "failed")
+        self.assertTrue(self.own_profile()["name"].startswith(nvidia_compat.LEGACY_PROFILE_PREFIX))
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        self.assertEqual(state["created_by"], nvidia_compat.LEGACY_CREATOR)
+        self.assertTrue(state["brand_migration"]["target_absent"])
+        self.assertTrue(self.configure()["verified"])
+        self.assertTrue(self.own_profile()["name"].startswith(nvidia_compat.PROFILE_PREFIX))
+
+    def test_legacy_migration_save_failure_after_apply_is_verified_and_recovered(self):
+        _profile, state_path = self.seed_legacy_profile()
+        self.backend.save_modes = ["fail_after"]
+        result = self.configure()
+        self.assertTrue(result["verified"]); self.assertEqual(result["legacy_profiles_migrated"], 1)
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        self.assertEqual(state["created_by"], nvidia_compat.CREATOR)
+        self.assertEqual(state["recovered_save_error"], -1)
+
+    def test_legacy_migration_interruption_after_driver_save_recovers_without_second_write(self):
+        _profile, state_path = self.seed_legacy_profile()
+        real_persist = nvidia_compat._persist
+        def interrupted(path, state, **kwargs):
+            if state.get("created_by") == nvidia_compat.CREATOR and state.get("migrated_from_profile_name"):
+                raise OSError("Mesterséges journallezárási hiba")
+            return real_persist(path, state, **kwargs)
+        with patch.object(nvidia_compat, "_persist", side_effect=interrupted):
+            self.assertEqual(self.configure()["status"], "failed")
+        self.assertTrue(self.own_profile()["name"].startswith(nvidia_compat.PROFILE_PREFIX))
+        self.assertEqual(json.loads(state_path.read_text(encoding="utf-8"))["created_by"], nvidia_compat.LEGACY_CREATOR)
+        self.backend.operations.clear()
+        result = self.configure()
+        self.assertTrue(result["verified"]); self.assertEqual(result["legacy_profiles_migrated"], 1)
+        self.assertEqual(self.backend.writes(), [])
 
     def test_new_profile_contains_only_full_exe_path_and_vrr_force_off(self):
         with patch("ctypes.WinDLL", side_effect=AssertionError("Valódi driver betöltése"), create=True), \

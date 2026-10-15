@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-15",
+  "appVersion": "6.0",
+  "baseCommit": "fdfd598c7b7c3e4c7eb20f5459722a6b837f7625",
+  "scope": "helyi forrasjavitas es offline ellenorzott EXE",
+  "historicalLog": {
+    "appVersion": "5.18",
+    "retainedFiles": 6,
+    "retainedRecords": 102435,
+    "retainedSeconds": 10.799,
+    "javascriptTimeoutRecords": 15193,
+    "deliveryPollRetryRecords": 11828,
+    "maxRetryAttempt": 58891,
+    "qtWarningRecords": 57603,
+    "droppedRecords": 51405,
+    "imageSubmissionProven": false
+  },
+  "tests": {
+    "python": {
+      "passed": 435,
+      "failed": 0,
+      "seconds": 119.839
+    },
+    "javascript": {
+      "passed": 69,
+      "failed": 0
+    },
+    "imageRecoveryChromium": {
+      "passed": 6,
+      "includedInPython": true
+    },
+    "modernChromium": {
+      "passed": 17,
+      "includedInPython": true
+    },
+    "nativeDeliveryPolling": {
+      "passed": 21,
+      "includedInPython": true
+    },
+    "buildChecks": {
+      "passed": 42,
+      "failed": 0
+    },
+    "frozenSelfTest": {
+      "passed": true,
+      "checks": 12,
+      "cycles": 9,
+      "modernImageRequests": 3,
+      "modernTextRequests": 1,
+      "seconds": 14.193,
+      "rapidOcrPassed": true,
+      "windowsOcrPassed": true
+    },
+    "compileall": true,
+    "nodeSyntax": true,
+    "pipCheck": true,
+    "diffCheck": true
+  },
+  "executable": {
+    "filename": "Gamer-Translator-v6.0.exe",
+    "bytes": 381665989,
+    "sha256": "da6a53720db8f5a8000df9f1cc9d1661800ed78cb3bac36a5d44e9ef270e3b6d",
+    "stagingAndInstalledMatch": true
+  },
+  "liveAuthenticatedRequestTested": false,
+  "gameplayPerformanceTested": false
+}

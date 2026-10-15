@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 from PIL import Image
 
-from gamer_translator.ocr_service import OCRCandidate, OCRService
+from gpttranslator.ocr_service import OCRCandidate, OCRService
 
 
 def box(left, top, right, bottom):
@@ -97,7 +97,7 @@ class OCRQualityTests(unittest.TestCase):
     def test_recovery_work_is_bounded(self):
         boxes = [box(0, 0, 100, 30), box(75, 0, 180, 30)]
         engine = Mock()
-        with patch("gamer_translator.ocr_service.MAX_OVERLAP_RECOVERY_GROUPS", 0):
+        with patch("gpttranslator.ocr_service.MAX_OVERLAP_RECOVERY_GROUPS", 0):
             result = self.service._recognize_overlapping_boxes(self.image_bytes, boxes, ("hello to", "tower"), (.98, .99), engine)
         self.assertEqual(result[1], ("hello to", "tower"))
         engine.assert_not_called()

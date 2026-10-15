@@ -16,12 +16,12 @@ from PySide6.QtCore import QCoreApplication, QEvent, QEventLoop, QTimer, QUrl
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineScript, QWebEngineSettings, QWebEngineUrlRequestInterceptor
 from PySide6.QtWidgets import QApplication
 
-from gamer_translator.main_window import MainWindow
+from gpttranslator.main_window import MainWindow
 
 
 FIXTURE = """<!doctype html><html lang="hu"><head><meta charset="utf-8">
 <link rel="icon" href="data:,">
-<title>Gamer Translator offline staging</title></head><body>
+<title>GPTTranslator offline staging</title></head><body>
 <main id="conversation"></main>
 <form id="form"><div data-testid="composer">
 COMPOSER
@@ -95,7 +95,7 @@ class DeliveryHarness:
     def __init__(self, page):
         self.browser = SimpleNamespace(url=page.url, page=lambda: page)
         self.settings = SimpleNamespace(page_ready_timeout_ms=1000)
-        self.automation_script = (Path(__file__).resolve().parents[1] / "gamer_translator" / "automation.js").read_text(encoding="utf-8")
+        self.automation_script = (Path(__file__).resolve().parents[1] / "gpttranslator" / "automation.js").read_text(encoding="utf-8")
         self.page_loading = False
         self.automation_ready = False
         self.browser_interaction_active = False
@@ -185,14 +185,14 @@ class WebEngineStagingTests(unittest.TestCase):
 
     def test_isolated_automation_survives_main_world_name_collision(self):
         self.load_fixture()
-        self.raw_javascript("window.__gamerTranslatorDeliver = () => { throw new Error('page override'); }; window.__gamerTranslatorDeliverVersion = 'page';")
+        self.raw_javascript("window.__gptTranslatorDeliver = () => { throw new Error('page override'); }; window.__gptTranslatorDeliverVersion = 'page';")
         self.harness._ensure_automation_ready()
         self.assertTrue(self.harness.automation_ready)
         result = self.deliver(prompt="Árvíztűrő tükörfúrógép.")
         self.assertEqual(result["assistantResponseText"], "Offline fordítás elkészült.")
         self.assertFalse(result["assistantResponseCopied"])
         self.assertEqual(self.raw_javascript("document.body.dataset.submitCount"), "1")
-        self.assertEqual(self.raw_javascript("window.__gamerTranslatorDeliverVersion"), "page")
+        self.assertEqual(self.raw_javascript("window.__gptTranslatorDeliverVersion"), "page")
         self.assertEqual(self.raw_javascript("document.body.dataset.submittedText"), "Árvíztűrő tükörfúrógép.")
         self.assertEqual(self.page.errors, [])
         self.assertEqual(self.blocker.blocked, [])
@@ -231,7 +231,7 @@ class WebEngineStagingTests(unittest.TestCase):
         self.load_fixture(origin="https://example.invalid/")
         with self.assertRaisesRegex(RuntimeError, "HTTPS"):
             self.harness._ensure_automation_ready()
-        self.assertEqual(self.raw_javascript("typeof window.__gamerTranslatorDeliver", world=QWebEngineScript.ScriptWorldId.ApplicationWorld), "undefined")
+        self.assertEqual(self.raw_javascript("typeof window.__gptTranslatorDeliver", world=QWebEngineScript.ScriptWorldId.ApplicationWorld), "undefined")
 
 
 if __name__ == "__main__":

@@ -1,22 +1,10 @@
 # Esemény- és hibanaplózás
 
-Ellenőrzés dátuma: 2026. október 1. A naplórendszer első kiadása: `5.12`.
-
-A `5.13` kiadásban javított Alt+V, új ChatGPT üzenetfelület és további megszakítási események részletei az [Alt+V vizsgálati jelentésében](alt-v-audit.md) szerepelnek. Az alábbi ellenőrzési eredmények az első, `5.12` kiadáshoz tartoznak.
-
-A `5.14` képes válaszfelismerési javítása és a kéréshez kötés új diagnosztikai mezői a [képes válaszfelismerés vizsgálati jelentésében](image-response-audit.md) szerepelnek.
-
-A `5.15` kattintható képes üzeneteinek felismerése, az eredménylekérdezés ismétlése és az elakadt küldés megszakítása az [egymás utáni képküldések vizsgálati jelentésében](second-image-audit.md) szerepel.
-
-A `5.16` szerepattribútum nélküli képes üzeneteinek felismerése és az élő technikai DOM-vizsgálat a [szerepfejlécek vizsgálati jelentésében](heading-image-audit.md) szerepel. A saját UI-fejlécből felismert szerep a naplóban `user_role_source=heading_role` értékkel jelenik meg.
-
-A `5.15` válaszállapot-eseményeinek `user_role_candidates` és `clickable_image_candidates` mezői csak darabszámot tartalmaznak. A `delivery.poll_retry`, `delivery.poll_recovered`, `page.delivery_cancelled` és `page.delivery_rejected` események segítenek elkülöníteni a lassú lekérdezést, a megszakítást és a foglalt küldést.
-
 ## Naplók helye és működése
 
-A normál alkalmazás automatikusan JSONL eseménynaplót ír a `%LOCALAPPDATA%\Gamer Translator\logs` könyvtárba. A Beállítások `Naplómappa megnyitása` gombja ezt a könyvtárat nyitja meg. A napló nem kerül feltöltésre.
+A normál alkalmazás automatikusan JSONL eseménynaplót ír a `%LOCALAPPDATA%\GPTTranslator\logs` könyvtárba. A Beállítások `Naplómappa megnyitása` gombja ezt a könyvtárat nyitja meg. A napló nem kerül feltöltésre.
 
-Az aktuális fájl `gamer-translator.jsonl`. Az 5 MiB-os korlát elérésekor az előző fájl `.1` végződést kap; összesen öt korábbi fájl marad meg. A lemezírás külön háttérszálon fut, legfeljebb 4096 várakozó eseménnyel. A megtelt sor és a helyreállt lemezírás saját eseményt kap. Naplózási hiba nem állíthatja le a fordítást.
+Az aktuális fájl `gpttranslator.jsonl`. Az 5 MiB-os korlát elérésekor az előző fájl `.1` végződést kap; összesen öt korábbi fájl marad meg. A lemezírás külön háttérszálon fut, legfeljebb 4096 várakozó eseménnyel. A megtelt sor és a helyreállt lemezírás saját eseményt kap. Naplózási hiba nem állíthatja le a fordítást.
 
 Minden sor helyi időzónás időbélyeget, folyamatazonosítót, szálazonosítót, alkalmazásverziót, munkamenet-azonosítót, eseménytípust és súlyosságot tartalmaz. A fordítási események közös `request_id` mezője összeköti a kérés teljes útját. A számszerű időtartamok ezredmásodpercben szerepelnek.
 
@@ -62,22 +50,9 @@ A naplóolvasó a forgatott fájlokat időrendben olvassa. A hibás vagy félbes
 - A késői válaszfigyelés legfeljebb 120 másodpercig marad aktív. Új kérés után a korábbi válasz nem írhatja felül a legújabb eredményt.
 - A késői válaszfigyelés lezárása megőrzi az utolsó választ akkor is, ha a felület eseménykezelése a lezárás idején késik.
 - A várakozó jogosított képek sorba kerülnek. Begépelés közben a képkivágási gyorsgomb várakoztatható, nem vész el némán.
-- A kiadás előtti audit az urllib3 2.7.0 függőségben három ismert hibát jelzett. A rögzített és becsomagolt függőség a javított 2.8.0 verzióra frissült.
+- Az automatikus képküldés legfeljebb három teljes próbálkozást végez ugyanazzal a mentett képpel. A beszélgetésben megjelent képes kérés után a válaszra vár; a már beküldött képet nem küldi el újra.
+- A képfeldolgozás eseményei elkülönítik a csatolást, a beküldés visszaigazolását, a bizonytalan beküldést és a válaszra várást. A kéréshez nem köthető assistant üzenet önmagában nem igazolja a képes kérés sikerét.
 
-Az urllib3 frissítését az upstream [HTTPS proxy TLS közleménye](https://github.com/urllib3/urllib3/security/advisories/GHSA-8988-9cw3-xx77), [Deflate-feldolgozási közleménye](https://github.com/urllib3/urllib3/security/advisories/GHSA-gh4c-6fx4-qh6g) és [chunked válaszok memóriahasználatáról szóló közleménye](https://github.com/urllib3/urllib3/security/advisories/GHSA-vxq7-64xx-v4gw) indokolja. Ez önmagában nem bizonyítja, hogy a korábban jelzett játék közbeni hibát ezek okozták.
+## Korábbi ellenőrzések
 
-Az ellenőrzések helyi, elkülönített DOM-mintákat és tesztprofilokat használnak. Az élő ChatGPT felülete és a játék közbeni működés későbbi vizsgálatához az új eseménynapló ad bizonyítékot.
-
-## Ellenőrzés
-
-- Python tesztek: 243/243 sikeres.
-- JavaScript tesztek: 27/27 sikeres, szintaxisellenőrzés sikeres.
-- Függőség-, fordíthatósági és diff-ellenőrzés sikeres.
-- Friss pip-audit: 45 ellenőrzött függőség, az urllib3 frissítése után nulla ismert sérülékenység és nulla kihagyott csomag.
-- A végleges EXE csomagellenőrzése: 34/34 sikeres, a beépített forrás és assetek egyeznek a munkafával.
-- A végleges EXE offline öntesztje: 8/8 sikeres, hét fordítási ciklussal. A RapidOCR és a Windows OCR a mintaképen egyaránt `Hello gamer` szöveget adott.
-- Külön Qt-próbában 40 naplóesemény keletkezett; a fordítás útja közös kérésazonosítóval követhető volt, a mintaszöveg és a fordítás nem került a naplóba.
-
-A helyi EXE: `dist\staging\debug-system\Gamer Translator.exe`. Mérete: 381 554 780 bájt. SHA-256: `a5c59eb00b5bc0b7207460c6aaa901026420e7acaf4906d0c60bbf9d7363eb62`.
-
-Az ellenőrzési állományok a `dist\staging\debug-system` könyvtárban találhatók: `build-manifest.json`, `frozen-self-test-release.json`, `python-tests-final.txt`, `node-tests-final.txt`, `release-pip-audit-fixed.json`, `release-defender-final.txt`, `offline-diagnostics.jsonl` és `ui-preview.png`. A kiadási fájl neve `Gamer-Translator-v5.12.exe`; ugyanazt az ellenőrzött EXE-t tartalmazza. A [kiadás előtti összesítés](evidence/debug-system-checks.json) a tesztek, az audit és a csomag ellenőrzési adatait tartalmazza.
+A korábbi naplóvizsgálatok, verziónkénti tesztszámok és EXE-hash-ek a [történeti dokumentációban](history/README.md) szerepelnek. A régi mérések az ott megnevezett programfájlra érvényesek.

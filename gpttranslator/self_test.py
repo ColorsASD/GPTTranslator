@@ -24,7 +24,7 @@ from .settings_store import AppSettings, SettingsStore
 
 FIXTURE = """<!doctype html><html lang="hu"><head><meta charset="utf-8">
 <link rel="icon" href="data:,"><title>Offline staging – nem a ChatGPT szolgáltatás</title></head>
-<body><h1>Gamer Translator offline önteszt</h1><main id="conversation"></main>
+<body><h1>GPTTranslator offline önteszt</h1><main id="conversation"></main>
 <form><div data-testid="composer"><textarea id="prompt-textarea"></textarea>
 <input id="attachment" type="file" accept="image/*">
 <button data-testid="send-button" type="submit" aria-label="Send message">Send</button>
@@ -163,7 +163,7 @@ class IsolatedWindow(MainWindow):
         self.offline = offline
         self.test_clipboard = MemoryClipboard()
         super().__init__(store=store, clipboard=self.test_clipboard, private_browser=True, open_on_start=not offline)
-        self.setWindowTitle("Gamer Translator – elkülönített teszt")
+        self.setWindowTitle("GPTTranslator – elkülönített teszt")
         self.system_keepawake_timer.stop()
         self.reset_defaults_button.setEnabled(False)
         for widget in (self.type_out_hotkey_enabled, self.screen_clip_hotkey_enabled,
@@ -234,7 +234,7 @@ def run_self_test(report_path: Path, duration: int, model_dir: Path | None = Non
     app = QApplication([sys.argv[0]])
     app.setQuitOnLastWindowClosed(False)
     window = None
-    with tempfile.TemporaryDirectory(prefix="gamer-translator-self-test-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gpttranslator-self-test-") as temporary:
         store = SettingsStore(Path(temporary))
         store.save_settings(test_settings(offline=True))
         try:
@@ -426,7 +426,7 @@ def run_staging() -> int:
     app = QApplication([sys.argv[0]])
     # A WebEngine háttérablaka mellett az implicit kilépés elmaradhat.
     app.lastWindowClosed.connect(app.quit)
-    with tempfile.TemporaryDirectory(prefix="gamer-translator-live-staging-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gpttranslator-live-staging-") as temporary:
         store = SettingsStore(Path(temporary))
         store.save_settings(test_settings(offline=False))
         window = IsolatedWindow(store, offline=False)

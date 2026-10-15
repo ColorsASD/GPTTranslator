@@ -11,7 +11,7 @@ from onnxruntime import ExecutionMode
 from rapidocr import RapidOCR
 from rapidocr.inference_engine.onnxruntime.main import OrtInferSession
 
-from gamer_translator.ocr_service import OCRService
+from gpttranslator.ocr_service import OCRService
 
 
 class OCRCompatibilityTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class OCRCompatibilityTests(unittest.TestCase):
         # A telepített csomag valódi metaadatai régebben eltértek a hardcoded nevektől.
         assets = self.service._required_assets()
         with patch.object(self.service, "_ensure_assets") as ensure_assets:
-            with patch("gamer_translator.ocr_service.RapidOCR") as engine:
+            with patch("gpttranslator.ocr_service.RapidOCR") as engine:
                 self.service._get_engine()
         ensure_assets.assert_called_once_with()
         params = engine.call_args.kwargs["params"]
@@ -35,13 +35,13 @@ class OCRCompatibilityTests(unittest.TestCase):
 
     def test_embedded_onnx_dictionary_needs_no_removed_internal_api(self):
         with patch.object(self.service, "_ensure_assets"):
-            with patch("gamer_translator.ocr_service.RapidOCR") as engine:
+            with patch("gpttranslator.ocr_service.RapidOCR") as engine:
                 self.service._get_engine()
         self.assertNotIn("Rec.rec_keys_path", engine.call_args.kwargs["params"])
 
     def test_failed_integrity_validation_cannot_initialize_an_engine(self):
         with patch.object(self.service, "_ensure_assets", side_effect=RuntimeError("ellenőrzőösszeg eltér")):
-            with patch("gamer_translator.ocr_service.RapidOCR") as engine:
+            with patch("gpttranslator.ocr_service.RapidOCR") as engine:
                 with self.assertRaisesRegex(RuntimeError, "ellenőrzőösszeg"):
                     self.service._get_engine()
         engine.assert_not_called()

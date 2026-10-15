@@ -44,13 +44,14 @@ Assert-BuildChildPath -Path $stagingPath -Parent $outputPath
 $stagingDist = Join-Path $stagingPath "dist"
 $workPath = Join-Path $stagingPath "work"
 $specPath = Join-Path $stagingPath "spec"
-$stagingExe = Join-Path $stagingDist "Gamer Translator.exe"
-$outputExe = Join-Path $outputPath "Gamer Translator.exe"
+$stagingExe = Join-Path $stagingDist "GPTTranslator.exe"
+$outputExe = Join-Path $outputPath "GPTTranslator.exe"
 $mainScript = Join-Path $projectRoot "main.py"
-$iconFile = Join-Path $projectRoot "gamer_translator\assets\icon.ico"
-$icon128File = Join-Path $projectRoot "gamer_translator\assets\icon-128.png"
-$checkMarkFile = Join-Path $projectRoot "gamer_translator\assets\check.svg"
-$automationScript = Join-Path $projectRoot "gamer_translator\automation.js"
+$iconFile = Join-Path $projectRoot "gpttranslator\assets\icon.ico"
+$icon128File = Join-Path $projectRoot "gpttranslator\assets\icon-128.png"
+$checkMarkFile = Join-Path $projectRoot "gpttranslator\assets\check.svg"
+$automationScript = Join-Path $projectRoot "gpttranslator\automation.js"
+$defaultsFile = Join-Path $projectRoot "gpttranslator\defaults.py"
 $requirementsFile = Join-Path $projectRoot "requirements-lock.txt"
 
 if (-not (Test-Path -LiteralPath $requirementsFile -PathType Leaf)) {
@@ -65,6 +66,36 @@ try {
   $resolvedPythonExecutable = (Get-Command $PythonExecutable -CommandType Application,ExternalScript -ErrorAction Stop).Source
   $env:PATH = @([Environment]::GetFolderPath("System"), $env:SystemRoot, (Split-Path -Parent $resolvedPythonExecutable)) -join ';'
   New-Item -ItemType Directory -Path $stagingPath -Force | Out-Null
+
+  # A Windows fájltulajdonságai és a Feladatkezelő is az aktuális nevet mutatják.
+  $versionMatch = [regex]::Match([IO.File]::ReadAllText($defaultsFile), '(?m)^APP_VERSION\s*=\s*"(\d+(?:\.\d+){0,3})"')
+  if (-not $versionMatch.Success) {
+    throw "Az alkalmazás numerikus verziója nem olvasható ki."
+  }
+  $productVersion = $versionMatch.Groups[1].Value
+  $versionParts = @($productVersion.Split('.') | ForEach-Object { [int]$_ })
+  while ($versionParts.Count -lt 4) { $versionParts += 0 }
+  if (@($versionParts | Where-Object { $_ -gt 65535 }).Count -gt 0) {
+    throw "Az alkalmazás verziószáma nem használható Windows verzióadatként."
+  }
+  $numericVersion = $versionParts -join ', '
+  $versionInfoPath = Join-Path $stagingPath 'version-info.txt'
+  $versionInfo = @"
+VSVersionInfo(
+  ffi=FixedFileInfo(filevers=($numericVersion), prodvers=($numericVersion), mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
+  kids=[StringFileInfo([StringTable('040904B0', [
+    StringStruct('CompanyName', 'ColorsASD'),
+    StringStruct('FileDescription', 'GPTTranslator'),
+    StringStruct('FileVersion', '$productVersion'),
+    StringStruct('InternalName', 'GPTTranslator'),
+    StringStruct('LegalCopyright', 'Copyright (c) 2026 ColorsASD'),
+    StringStruct('OriginalFilename', 'GPTTranslator.exe'),
+    StringStruct('ProductName', 'GPTTranslator'),
+    StringStruct('ProductVersion', '$productVersion')
+  ])]), VarFileInfo([VarStruct('Translation', [1033, 1200])])]
+)
+"@
+  [IO.File]::WriteAllText($versionInfoPath, $versionInfo, [Text.UTF8Encoding]::new($false))
 
   if (-not $SkipDependencyInstall) {
     & $resolvedPythonExecutable -m pip install -r $requirementsFile
@@ -86,15 +117,16 @@ try {
     --collect-all "winrt" `
     --collect-all "wordfreq" `
     --hidden-import "onnxruntime" `
-    --name "Gamer Translator" `
+    --name "GPTTranslator" `
+    --version-file "$versionInfoPath" `
     --icon "$iconFile" `
-    --add-data "${automationScript};gamer_translator" `
-    --add-data "${icon128File};gamer_translator\assets" `
-    --add-data "${checkMarkFile};gamer_translator\assets" `
+    --add-data "${automationScript};gpttranslator" `
+    --add-data "${icon128File};gpttranslator\assets" `
+    --add-data "${checkMarkFile};gpttranslator\assets" `
     "$mainScript"
 
   $buildExitCode = $LASTEXITCODE
-  $warningsFile = Join-Path $workPath "Gamer Translator\warn-Gamer Translator.txt"
+  $warningsFile = Join-Path $workPath "GPTTranslator\warn-GPTTranslator.txt"
   if (Test-Path -LiteralPath $warningsFile -PathType Leaf) {
     Copy-Item -LiteralPath $warningsFile -Destination (Join-Path $outputPath "build-warnings.txt") -Force
   }

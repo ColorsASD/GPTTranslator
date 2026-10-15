@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import os
 import subprocess
@@ -10,8 +11,8 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from gamer_translator.defaults import APP_NAME, APP_VERSION
-from gamer_translator.diagnostics import (
+from gpttranslator.defaults import APP_NAME, APP_VERSION
+from gpttranslator.diagnostics import (
     install_exception_hooks,
     log_event,
     log_exception,
@@ -19,7 +20,10 @@ from gamer_translator.diagnostics import (
     setup_diagnostics,
     shutdown_diagnostics,
 )
-from gamer_translator.settings_store import AppSettings, SettingsStore, default_app_data_dir
+from gpttranslator.settings_store import (
+    AppSettings, ProfileMigrationError, SettingsStore, default_app_data_dir,
+    legacy_app_data_dirs, migrate_legacy_app_data,
+)
 
 
 def _extract_csv_flag_values(flags: list[str], key: str) -> tuple[list[str], set[str]]:
@@ -112,7 +116,7 @@ def _report_qt_import_failure(error: BaseException) -> int:
         if mode == "normal":
             record_failure(default_app_data_dir())
         else:
-            with tempfile.TemporaryDirectory(prefix="gamer-translator-test-diagnostics-") as directory:
+            with tempfile.TemporaryDirectory(prefix="gpttranslator-test-diagnostics-") as directory:
                 record_failure(Path(directory))
     except Exception:
         # A naplókönyvtár hibája sem helyettesítheti az eredeti indulási hibát.
@@ -123,11 +127,63 @@ def _report_qt_import_failure(error: BaseException) -> int:
 try:
     from PySide6.QtCore import QLockFile, QObject, Signal, qInstallMessageHandler
     from PySide6.QtNetwork import QLocalServer, QLocalSocket
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QMessageBox
 except (ImportError, OSError) as error:
     if __name__ == "__main__":
         raise SystemExit(_report_qt_import_failure(error)) from None
     raise
+
+
+class ProfileMigrationGuard:
+    """A régi profilhoz nem férhet hozzá a régi és az új alkalmazás egyszerre."""
+
+    def __init__(self, target_dir: Path, legacy_dirs: tuple[Path, ...] | None = None) -> None:
+        self.requested_target_dir = target_dir
+        self.target_dir = target_dir.resolve()
+        self.legacy_dirs = legacy_app_data_dirs(self.target_dir) if legacy_dirs is None else legacy_dirs
+        self.legacy_locks: list[QLockFile] = []
+
+    def prepare(self) -> None:
+        if self.requested_target_dir.is_symlink() or self.requested_target_dir.is_junction():
+            raise ProfileMigrationError("Az új adatmappa hivatkozás, ezért az automatikus átvétel leállt.")
+        self.target_dir.parent.mkdir(parents=True, exist_ok=True)
+        migration_lock = QLockFile(str(self.target_dir.parent / f".{self.target_dir.name}.migration.lock"))
+        migration_lock.setStaleLockTime(0)
+        if not migration_lock.tryLock(0):
+            raise ProfileMigrationError("A GPTTranslator profiljának átvétele már folyamatban van. Próbáld újra az indítást néhány másodperc múlva.")
+        try:
+            # Egy már futó új példányt a saját, új nevű IPC-je aktiválhat.
+            # Ilyenkor a régi profil zárát az a példány tartja, ezért itt nem
+            # kérjük el újra, és sem migrációt, sem második böngészőt nem nyitunk.
+            existing_lock_path = self.target_dir / "instance.lock"
+            if existing_lock_path.exists():
+                existing_lock = QLockFile(str(existing_lock_path))
+                existing_lock.setStaleLockTime(0)
+                if not existing_lock.tryLock(0):
+                    return
+                existing_lock.unlock()
+            for source_dir in self.legacy_dirs:
+                if not source_dir.exists():
+                    continue
+                if source_dir.is_symlink() or source_dir.is_junction() or not source_dir.is_dir():
+                    raise ProfileMigrationError("A korábbi adatmappa nem szokásos könyvtár, ezért az automatikus átvétel leállt.")
+                legacy_lock = QLockFile(str(source_dir / "instance.lock"))
+                legacy_lock.setStaleLockTime(0)
+                if not legacy_lock.tryLock(0):
+                    raise ProfileMigrationError("A korábbi alkalmazás még fut vagy használja a profilt. Zárd be teljesen a tálcaikonjánál is, majd indítsd újra a GPTTranslator programot.")
+                self.legacy_locks.append(legacy_lock)
+            migrate_legacy_app_data(self.target_dir, self.legacy_dirs)
+        except Exception:
+            self.release()
+            raise
+        finally:
+            migration_lock.unlock()
+
+    def release(self) -> None:
+        for legacy_lock in reversed(self.legacy_locks):
+            legacy_lock.unlock()
+        self.legacy_locks.clear()
+
 
 class SingleInstanceController(QObject):
     activation_requested = Signal()
@@ -232,7 +288,7 @@ def _configure_nvidia_compatibility(settings: AppSettings) -> dict:
     if not getattr(sys, "frozen", False):
         return {"status": "source_run", "changed": False, "verified": False}
     try:
-        from gamer_translator.nvidia_compat import configure_nvidia_compatibility
+        from gpttranslator.nvidia_compat import configure_nvidia_compatibility
         result = configure_nvidia_compatibility(
             Path(sys.executable), enabled=settings.nvidia_mouse_lag_fix_enabled,
             state_dir=default_app_data_dir() / "nvidia-compat",
@@ -266,13 +322,21 @@ def _run_normal(*, nvidia_compat_restarted: bool = False) -> int:
             # Egy sikertelen újraindítás miatt az alkalmazás még elindulhat.
             log_exception("nvidia.compatibility_restart_failed", error)
 
-    from gamer_translator.main_window import MainWindow
+    from gpttranslator.main_window import MainWindow
 
+    if sys.platform == "win32" and getattr(sys, "frozen", False):
+        set_application_id = ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID
+        set_application_id.argtypes = (ctypes.c_wchar_p,)
+        set_application_id.restype = ctypes.c_long
+        result = set_application_id("ColorsASD.GPTTranslator")
+        if result < 0:
+            log_event("app.identity_failed", level="WARNING", code=int(result))
     app = QApplication(sys.argv)
+    app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)
     log_event("app.qt_ready")
 
-    single_instance = SingleInstanceController("GamerTranslatorDesktopSingleton")
+    single_instance = SingleInstanceController("GPTTranslatorDesktopSingleton")
 
     if not single_instance.ensure_primary_instance():
         return 0
@@ -303,15 +367,28 @@ def main() -> int:
         if args.self_test_report is not None:
             os.environ["QT_QPA_PLATFORM"] = "offscreen"
         def run_test_mode() -> int:
-            from gamer_translator.self_test import run_self_test, run_staging
+            from gpttranslator.self_test import run_self_test, run_staging
             return run_self_test(args.self_test_report, args.self_test_duration, args.self_test_model_dir) if args.self_test_report else run_staging()
 
         # Az önteszt saját naplója sem érintheti az éles profil állapotát.
-        with tempfile.TemporaryDirectory(prefix="gamer-translator-test-diagnostics-") as directory:
+        with tempfile.TemporaryDirectory(prefix="gpttranslator-test-diagnostics-") as directory:
             return _run_with_diagnostics(Path(directory), "self_test" if args.self_test_report else "staging", run_test_mode)
 
-    return _run_with_diagnostics(default_app_data_dir(), "normal",
-                                 lambda: _run_normal(nvidia_compat_restarted=args.nvidia_compat_restarted))
+    profile_dir = default_app_data_dir()
+    migration_guard = ProfileMigrationGuard(profile_dir)
+    try:
+        # A naplózó is létrehozza az új könyvtárat, ezért a migráció és a régi
+        # példány ellenőrzése még a diagnosztika és a SettingsStore előtt fut.
+        migration_guard.prepare()
+    except (ProfileMigrationError, OSError) as error:
+        app = QApplication.instance() or QApplication(sys.argv)
+        QMessageBox.warning(None, APP_NAME, str(error))
+        return 1
+    try:
+        return _run_with_diagnostics(profile_dir, "normal",
+                                     lambda: _run_normal(nvidia_compat_restarted=args.nvidia_compat_restarted))
+    finally:
+        migration_guard.release()
 
 
 if __name__ == "__main__":

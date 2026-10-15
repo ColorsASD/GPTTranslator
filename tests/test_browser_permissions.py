@@ -12,7 +12,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWebEngineCore import QWebEnginePermission
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
-from gamer_translator.browser_permissions import BrowserMicrophonePermissions
+from gpttranslator.browser_permissions import BrowserMicrophonePermissions
 
 
 class FakePermission:
@@ -287,7 +287,7 @@ class BrowserPermissionTests(unittest.TestCase):
 
     def test_permission_logging_does_not_record_page_url_or_conversation_content(self):
         self.page.current_url = QUrl("https://chatgpt.com/c/bizalmas-hangbeszelgetes?prompt=titkos-szoveg")
-        with patch("gamer_translator.browser_permissions.log_event") as logger:
+        with patch("gpttranslator.browser_permissions.log_event") as logger:
             permission = FakePermission()
             self.request(permission)
             self.answer(True)

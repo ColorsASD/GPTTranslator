@@ -6,7 +6,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from gamer_translator import main_window as module
+from gpttranslator import main_window as module
 from test_mouse_hotkeys import hotkey_window
 
 

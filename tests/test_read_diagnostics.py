@@ -67,6 +67,26 @@ class ReadDiagnosticsTests(unittest.TestCase):
         events = [line.split(" ")[2] for line in stdout.splitlines()]
         self.assertEqual(events, ["step.backup5", "step.backup4", "step.backup3", "step.backup2", "step.backup1", "step.active1", "step.active2"])
 
+    def test_explicit_legacy_log_directory_remains_readable_without_modification(self) -> None:
+        paths = []
+        for suffix, event in ((".1", "legacy.backup"), ("", "legacy.active")):
+            path = self.directory / (module.diagnostics.LEGACY_LOG_FILENAME + suffix)
+            path.write_text(json.dumps(self.record(event)) + "\n", encoding="utf-8"); paths.append(path)
+        before = {path.name: path.read_bytes() for path in paths}
+        status, stdout, stderr = self.run_cli()
+        self.assertEqual(status, 0); self.assertEqual(stderr, "")
+        self.assertEqual([line.split(" ")[2] for line in stdout.splitlines()], ["legacy.backup", "legacy.active"])
+        self.assertEqual({path.name: path.read_bytes() for path in self.directory.iterdir()}, before)
+
+    def test_migrated_history_is_read_before_current_rotated_and_active_files(self) -> None:
+        archive = self.directory / "gpttranslator.migrated-00000000000000000001-00-fixture.jsonl"
+        archive.write_text(json.dumps(self.record("legacy.archived")) + "\n", encoding="utf-8")
+        self.write([self.record("current.backup")], backup=1)
+        self.write([self.record("current.active")])
+        status, stdout, stderr = self.run_cli()
+        self.assertEqual(status, 0); self.assertEqual(stderr, "")
+        self.assertEqual([line.split(" ")[2] for line in stdout.splitlines()], ["legacy.archived", "current.backup", "current.active"])
+
     def test_request_filter_is_case_insensitive_and_level_is_minimum_severity(self) -> None:
         self.write([
             self.record("request.started", request_id=self.request_a),
@@ -162,9 +182,9 @@ class ReadDiagnosticsTests(unittest.TestCase):
 
     def test_default_directory_does_not_initialize_or_read_profile(self) -> None:
         with patch.dict(module.os.environ, {"LOCALAPPDATA": str(self.directory)}):
-            self.assertEqual(module.default_log_directory(), self.directory / "Gamer Translator" / "logs")
+            self.assertEqual(module.default_log_directory(), self.directory / "GPTTranslator" / "logs")
         with patch.dict(module.os.environ, {}, clear=True), patch.object(module.Path, "home", return_value=self.directory):
-            self.assertEqual(module.default_log_directory(), self.directory / ".gamer-translator" / "logs")
+            self.assertEqual(module.default_log_directory(), self.directory / ".gpttranslator" / "logs")
         self.assertEqual(list(self.directory.iterdir()), [])
 
     def test_missing_logs_return_clear_error_without_echoing_directory(self) -> None:

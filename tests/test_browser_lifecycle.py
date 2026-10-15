@@ -13,9 +13,9 @@ from PySide6.QtCore import QObject, QTimer, QUrl, Signal
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWidgets import QApplication
 
-from gamer_translator import main_window as module
-from gamer_translator.main_window import BrowserOperationCancelled, MainWindow
-from gamer_translator.settings_store import AppSettings
+from gpttranslator import main_window as module
+from gpttranslator.main_window import BrowserOperationCancelled, MainWindow
+from gpttranslator.settings_store import AppSettings
 
 
 ACTIVE = QWebEnginePage.LifecycleState.Active

@@ -29,7 +29,7 @@ from wordfreq import zipf_frequency
 from .diagnostics import log_event, log_exception
 from .settings_store import default_app_data_dir
 
-LOGGER = logging.getLogger("gamer_translator.ocr")
+LOGGER = logging.getLogger("gpttranslator.ocr")
 _OCR_REQUEST_ID: ContextVar[str | None] = ContextVar("ocr_request_id", default=None)
 HUNGARIAN_WORD_PATTERN = re.compile(r"[A-Za-zÁÉÍÓÖŐÚÜŰáéíóöőúüű]+")
 OCR_WORD_PATTERN = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*", re.UNICODE)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -25,13 +26,86 @@ from .defaults import (
 )
 
 
+# Kizárólag a korábbi kiadások helyi adatainak átvételéhez tartjuk meg.
+LEGACY_DATA_DIRECTORY_NAMES = {"local": "Gamer Translator", "home": ".gamer-translator"}
+
+
+class ProfileMigrationError(RuntimeError):
+    """A korábbi profil biztonságos átvétele nem fejezhető be."""
+
+
 def default_app_data_dir() -> Path:
     local_app_data = os.environ.get("LOCALAPPDATA")
 
     if local_app_data:
-        return Path(local_app_data) / "Gamer Translator"
+        return Path(local_app_data) / "GPTTranslator"
 
-    return Path.home() / ".gamer-translator"
+    return Path.home() / ".gpttranslator"
+
+
+def legacy_app_data_dirs(target_dir: Path) -> tuple[Path, ...]:
+    """Csak a normál alapértelmezett profilhoz keresünk korábbi adatokat."""
+    target_dir = target_dir.resolve()
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    candidates = []
+    if local_app_data and target_dir == (Path(local_app_data) / "GPTTranslator").resolve():
+        candidates.append(Path(local_app_data) / LEGACY_DATA_DIRECTORY_NAMES["local"])
+    if target_dir == (Path.home() / ".gpttranslator").resolve() or candidates:
+        candidates.append(Path.home() / LEGACY_DATA_DIRECTORY_NAMES["home"])
+    return tuple(dict.fromkeys(path.absolute() for path in candidates))
+
+
+def migrate_legacy_app_data(target_dir: Path, legacy_dirs: tuple[Path, ...]) -> bool:
+    """Lezárt régi profil másolása, majd az egész új mappa atomikus publikálása.
+
+    A hívó a teljes másolás előtt és alatt tartsa a régi profilok instance.lock
+    zárait és az új profil külső migrációs zárát. A normál indulás ezt a main
+    ProfileMigrationGuard osztályával biztosítja. Meglévő adatot nem egyesítünk.
+    """
+    if target_dir.is_symlink() or target_dir.is_junction():
+        raise ProfileMigrationError("Az új adatmappa hivatkozás, ezért az automatikus átvétel leállt.")
+    target_dir = target_dir.resolve()
+    sources = []
+    for path in legacy_dirs:
+        if path.is_symlink() or path.is_junction():
+            raise ProfileMigrationError("A korábbi adatmappa hivatkozás, ezért az automatikus átvétel leállt.")
+        if path.is_dir():
+            sources.append(path.resolve())
+    if not sources:
+        return False
+    if target_dir.exists() and any(target_dir.iterdir()):
+        if (target_dir / "settings.json").is_file() or (target_dir / "browser/storage").is_dir():
+            return False
+        raise ProfileMigrationError("Az új adatmappában már vannak fájlok, de a profil átvétele nem igazolható. A korábbi adatok megőrzése érdekében a program nem indít üres profilt.")
+    source_dir = sources[0]
+    if source_dir == target_dir or target_dir.is_relative_to(source_dir) or source_dir.is_relative_to(target_dir):
+        raise ProfileMigrationError("A korábbi és az új adatmappa nem lehet egymás része.")
+    # Linket/junctiont nem követünk: a másolásnak a kiválasztott profilon belül
+    # kell maradnia, különben az új profil hiányos vagy idegen adatot tartalmazhat.
+    for root, directories, files in os.walk(source_dir, followlinks=False):
+        for name in (*directories, *files):
+            path = Path(root) / name
+            if path.is_symlink() or path.is_junction():
+                raise ProfileMigrationError("A korábbi adatmappa hivatkozást tartalmaz, ezért az automatikus átvétel leállt.")
+    target_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging_dir = Path(tempfile.mkdtemp(prefix=f".{target_dir.name}-migration-", dir=target_dir.parent))
+    try:
+        def ignore_instance_lock(directory: str, names: list[str]) -> list[str]:
+            return ["instance.lock"] if Path(directory).resolve() == source_dir and "instance.lock" in names else []
+
+        shutil.copytree(source_dir, staging_dir, dirs_exist_ok=True, ignore=ignore_instance_lock)
+        # A régi példány zárját nem vihetjük az új profil saját zárának helyére.
+        if target_dir.exists():
+            target_dir.rmdir()  # Csak az előzetesen üres cél törölhető.
+        staging_dir.rename(target_dir)
+        log_event("profile.migrated", success=True)
+        return True
+    except OSError as error:
+        log_exception("profile.migration_failed", error)
+        raise ProfileMigrationError("A korábbi profil átvétele nem sikerült. A régi adatok változatlanul megmaradtak.") from error
+    finally:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
 
 
 def utc_now_iso() -> str:

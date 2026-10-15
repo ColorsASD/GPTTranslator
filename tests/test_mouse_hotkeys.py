@@ -13,8 +13,8 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QMainWindow
 
-from gamer_translator import main_window as module
-from gamer_translator.main_window import MainWindow
+from gpttranslator import main_window as module
+from gpttranslator.main_window import MainWindow
 
 
 def hotkey_window(bindings=None) -> SimpleNamespace:

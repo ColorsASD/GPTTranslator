@@ -1,4 +1,4 @@
-"""A Gamer Translator szürke fejléc- és beállítási felülete."""
+"""A GPTTranslator szürke fejléc- és beállítási felülete."""
 from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt
@@ -200,7 +200,7 @@ def build_settings(w) -> None:
     text = QVBoxLayout()
     text.setSpacing(4)
     text.addWidget(label("Beállítások", "settingsTitle"))
-    text.addWidget(label("Szabd személyre a Gamer Translator működését.", "settingsSubtitle"))
+    text.addWidget(label("Szabd személyre a GPTTranslator működését.", "settingsSubtitle"))
     header.addLayout(text, 1)
     header.addWidget(w.close_drawer_button)
     layout.addLayout(header)
@@ -225,7 +225,7 @@ def build_settings(w) -> None:
     active_text = QVBoxLayout()
     active_text.setSpacing(3)
     active_text.addWidget(label("A program legyen aktív"))
-    active_text.addWidget(label("A Gamer Translator fusson a háttérben.", "secondaryText"))
+    active_text.addWidget(label("A GPTTranslator fusson a háttérben.", "secondaryText"))
     row.addLayout(active_text, 1)
     row.addWidget(w.monitoring_enabled)
     general.addWidget(active)

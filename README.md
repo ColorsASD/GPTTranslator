@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="gamer_translator/assets/icon-1024.png" alt="Gamer Translator ikon" width="160" height="160">
+  <img src="gpttranslator/assets/icon-1024.png" alt="GPTTranslator ikon" width="160" height="160">
 </p>
 
-# Gamer Translator
+# GPTTranslator
 
-A Gamer Translator egy önálló Windows asztali alkalmazás, amely a `chatgpt.com` oldalt saját ablakban nyitja meg, és a képkivágásos fordítási munkafolyamatot közvetlenül ebből az ablakból kezeli.
+A GPTTranslator egy önálló Windows asztali alkalmazás, amely a `chatgpt.com` oldalt saját ablakban nyitja meg, és a képkivágásos fordítási munkafolyamatot közvetlenül ebből az ablakból kezeli.
 
 ## Fő képességek
 
@@ -15,6 +15,7 @@ A Gamer Translator egy önálló Windows asztali alkalmazás, amely a `chatgpt.c
 - kézi promptküldés a felső `Prompt elküldése` gombbal
 - Windows képkivágó indítása gyorsgombbal
 - a saját képkivágási gyorsgombbal készített képek automatikus beküldése a ChatGPT-be
+- az elakadt képküldés ellenőrzött újrapróbálása ugyanabból a kivágásból, új képkészítés nélkül
 - választható OCR mód, amely képről szöveget olvas ki és azt küldi a ChatGPT-nek
 - az OCR mód alapértelmezetten bekapcsolt
 - a kész fordítás automatikus visszamásolása a vágólapra
@@ -56,7 +57,7 @@ A Gamer Translator egy önálló Windows asztali alkalmazás, amely a `chatgpt.c
 - `main.py`: a program belépési pontja
 - `build.ps1`: `.exe` build PowerShellből
 - `requirements.txt`: Python függőségek
-- `gamer_translator/`: az alkalmazás forráskódja és assetjei
+- `gpttranslator/`: az alkalmazás forráskódja és assetjei
 
 A szürke felület felépítése, működése és az elkülönített előnézet készítése a [felületi leírásban](docs/design.md) szerepel.
 
@@ -79,7 +80,7 @@ PowerShellből a projekt gyökérmappájában:
 .\build.ps1 -PythonExecutable .\.venv313\Scripts\python.exe
 ```
 
-Az elkészült egyfájlos program a `dist\Gamer Translator.exe` fájlba kerül.
+Az elkészült egyfájlos program a `dist\GPTTranslator.exe` fájlba kerül.
 
 Elkülönített tesztbuild a korábbi program felülírása nélkül:
 
@@ -88,6 +89,14 @@ Elkülönített tesztbuild a korábbi program felülírása nélkül:
 ```
 
 A `-SkipDependencyInstall` kapcsolót csak előzetesen telepített és ellenőrzött környezettel használd. Sikertelen build nem írja felül a korábbi programot.
+
+## Korábbi adatok átvétele
+
+A GPTTranslator normál Windows-adatmappája `%LOCALAPPDATA%\GPTTranslator`. Az első indítás a korábbi néven mentett beállításokat, böngésző-munkamenetet és OCR-modelleket automatikusan átveszi, ha az új adatmappa még nem tartalmaz adatot. A korábbi adatmappa megmarad a visszaállításhoz; meglévő új profilt a program nem egyesít és nem ír felül.
+
+Az átnevezés utáni első indítás előtt teljesen zárd be a régi programot a tálcaikonjánál is. Futó régi példány vagy sikertelen másolás esetén az új program jelzi a hibát és leáll. A korábbi névhez tartozó kompatibilitási útvonalakat és az átvétel részleteit a [telepítési útmutató](docs/deployment.md#korábbi-adatok-átvétele) rögzíti.
+
+Az átnevezés, az új ikon, a profilátvétel és az EXE ellenőrzésének eredménye az [átnevezési jelentésben](docs/rebranding.md) szerepel.
 
 ## Használat
 
@@ -113,7 +122,7 @@ A `-SkipDependencyInstall` kapcsolót csak előzetesen telepített és ellenőrz
 - a ChatGPT `Start voice` gombja után a program magyar ablakban kér mikrofonengedélyt; az `Engedélyezés` elindíthatja a mikrofon használatát, a `Tiltás`, az Escape és az ablak bezárása elutasítja a kérést
 - a mikrofonengedély csak a főablak aktuális, engedélyezett HTTPS ChatGPT-eredetének hangrögzítési kérésére adható; az alkalmazás kamerát és külső oldalnak szóló engedélyt nem ad
 
-Az NVIDIA-profil a videokártya-illesztőprogram helyi, egy alkalmazáshoz tartozó beállítása. A beépített javítás csak a Gamer Translator számára kapcsolja ki a G-SYNC/VRR alkalmazásszintű használatát; a játékok profiljához és a globális beállításokhoz nem nyúl. Új profil létrehozása és ellenőrzése után a program egyszer automatikusan újraindul, hogy friss folyamattal használja a beállítást. NVIDIA nélküli gépen a program a szokásos módon indul. A működés, a meglévő felhasználói profilok megőrzése és a kikapcsolás részletei az [NVIDIA-kompatibilitás leírásában](docs/nvidia-compatibility.md) szerepelnek.
+Az NVIDIA-profil a videokártya-illesztőprogram helyi, egy alkalmazáshoz tartozó beállítása. A beépített javítás csak a GPTTranslator számára kapcsolja ki a G-SYNC/VRR alkalmazásszintű használatát; a játékok profiljához és a globális beállításokhoz nem nyúl. Új profil létrehozása és ellenőrzése után a program egyszer automatikusan újraindul, hogy friss folyamattal használja a beállítást. NVIDIA nélküli gépen a program a szokásos módon indul. A működés, a meglévő felhasználói profilok megőrzése és a kikapcsolás részletei az [NVIDIA-kompatibilitás leírásában](docs/nvidia-compatibility.md) szerepelnek.
 
 A hangbeszélgetéshez mikrofonhozzáférés szükséges. A fejhallgató hangkimenetéhez nincs külön Qt webes engedélykérő; a lejátszás a Windows hangkimeneti beállításait követi. A program minden új Qt-mikrofonengedélykérésnél felhasználói döntést kér, és nem ment saját tartós mikrofonengedélyt. A működés és az offline ellenőrzés részletei a [hangengedélyek leírásában](docs/voice-permissions.md) találhatók.
 
@@ -129,7 +138,7 @@ A hangbeszélgetéshez mikrofonhozzáférés szükséges. A fejhallgató hangkim
 ## Esemény- és hibanaplózás
 
 - a naplózás automatikusan aktív; a Beállítások `Naplómappa megnyitása` gombja nyitja meg a helyi naplókat
-- a naplók helye `%LOCALAPPDATA%\Gamer Translator\logs`, az aktuális fájl `gamer-translator.jsonl`
+- a naplók helye `%LOCALAPPDATA%\GPTTranslator\logs`, az aktuális fájl `gpttranslator.jsonl`
 - minden kérés saját azonosítót kap; a gyorsgomb, a kivágás, az OCR, a csatolás, a küldés, a válasz és a begépelés eseményei időrendben követhetők
 - 15 másodpercenként CPU-, memória- és eseményhurok-adatok is készülnek az alkalmazásról és a böngésző megjelenítő folyamatáról
 - a napló külön háttérszálon íródik, fájlonként legfeljebb 5 MiB és öt korábbi fájl megőrzésével
@@ -137,21 +146,25 @@ A hangbeszélgetéshez mikrofonhozzáférés szükséges. A fejhallgató hangkim
 - az új kérés érvényteleníti a korábbi fordítást; a begépelési gyorsgomb a legutóbbi kérés elkészült szövegét használja
 - a képek legfeljebb négy várakozó elemet tartalmazó sorba kerülnek; megtelt sor esetén a program jelzi, hogy új kivágás szükséges
 - időtúllépés után legfeljebb két percig tovább figyeli a késői választ, az eredeti kéréshez kötve
+- az automatikus képküldés legfeljebb három teljes próbálkozást végez ugyanazzal a mentett képpel; a beszélgetésben megjelent képes kérés után a válaszra vár, és nem indít újabb beküldést
 
 A részletes működés és a naplók olvasása a [debug rendszer leírásában](docs/debug-system.md) található.
 
-Az Alt+V további javításának oka és ellenőrzése az [Alt+V vizsgálati jelentésében](docs/alt-v-audit.md) szerepel. A vágólapmásolás kikapcsolása mellett is megmarad a kész fordítás a begépelési gyorsgomb számára; részleges válasz nem használható kész fordításként.
+Az Alt+V további javításának oka és ellenőrzése az [Alt+V vizsgálati jelentésében](docs/history/pre-gpttranslator/docs/alt-v-audit.md) szerepel. A vágólapmásolás kikapcsolása mellett is megmarad a kész fordítás a begépelési gyorsgomb számára; részleges válasz nem használható kész fordításként.
 
-A szövegbuborék nélküli képes kérések válaszfelismerésének javítása és a válasz elutasításának részletesebb naplózása a [képes válaszfelismerés vizsgálati jelentésében](docs/image-response-audit.md) szerepel.
+A szövegbuborék nélküli képes kérések válaszfelismerésének javítása és a válasz elutasításának részletesebb naplózása a [képes válaszfelismerés vizsgálati jelentésében](docs/history/pre-gpttranslator/docs/image-response-audit.md) szerepel.
 
-A kattintható képes üzenetek felismerésének, a sorban várakozó képeknek és az időtúllépés után bennmaradó küldési állapotnak a javítása az [egymás utáni képküldések vizsgálati jelentésében](docs/second-image-audit.md) szerepel.
+A kattintható képes üzenetek felismerésének, a sorban várakozó képeknek és az időtúllépés után bennmaradó küldési állapotnak a javítása az [egymás utáni képküldések vizsgálati jelentésében](docs/history/pre-gpttranslator/docs/second-image-audit.md) szerepel.
 
-A szerepattribútum nélküli képes üzenetek élő DOM-vizsgálata és a saját UI-fejlécből történő felismerés javítása a [szerepfejlécek vizsgálati jelentésében](docs/heading-image-audit.md) szerepel.
+A szerepattribútum nélküli képes üzenetek élő DOM-vizsgálata és a saját UI-fejlécből történő felismerés javítása a [szerepfejlécek vizsgálati jelentésében](docs/history/pre-gpttranslator/docs/heading-image-audit.md) szerepel.
+
+Az elakadt képküldés újrapróbálása és a kilépés közben megszaladó ellenőrzés javítása a [képküldési helyreállítás vizsgálati jelentésében](docs/history/pre-gpttranslator/docs/image-recovery-audit.md) szerepel.
 
 ## Megjegyzés
 
 - A projekt nem az OpenAI API-t használja, hanem a webes ChatGPT felületet.
 - A működés a `chatgpt.com` oldal felépítésére épül, ezért egy nagyobb felületi változás után a DOM-kezelést frissíteni kellhet.
+- A képes üzenetek felismeréséhez a ChatGPT saját felületének nyelve `English` legyen. A fordítás célnyelve ettől függetlenül lehet magyar. A magyar `Ezt mondtad:` és `A ChatGPT válasza:` üzenetfejléceket a jelenlegi felismerő nem kezeli.
 - Az automatizálás csak a `https://chatgpt.com` és a `https://chat.openai.com` főoldali eredeten használható. Külső oldalon leáll; az eredet ellenőrzése a külön URL-sor eltávolítása után is megmarad.
 - Aktív programnál a saját képkivágási gyorsbillentyű után érkező első vágólapkép vagy a belőle kiolvasott szöveg automatikusan az aktuális ChatGPT-beszélgetésbe kerül. A kivágásra várakozás közben ne másolj más képet a vágólapra; az `Esc` vagy a külön megnyomott `Win + Shift + S` törli ezt az egyszeri küldési engedélyt.
 - A program a legutóbbi fordítást és a böngésző munkamenetét helyben megőrzi. A begépelési gyorsgomb az aktív ablakba ír; sortörést és tabulátort is küldhet, ezért terminálban ne használd.
@@ -169,19 +182,21 @@ A tesztek helyi DOM-mintával és elkülönített adatokkal futnak; nem küldene
 A kész EXE külön offline önteszttel is ellenőrizhető:
 
 ```powershell
-& '.\dist\staging\verified\Gamer Translator.exe' --self-test-report '.\dist\staging\verified\self-test.json' --self-test-duration 120
+& '.\dist\staging\verified\GPTTranslator.exe' --self-test-report '.\dist\staging\verified\self-test.json' --self-test-duration 120
 ```
 
 A jelentésben a `passed: true` és a sikeres kilépési kód jelzi a lefutást. Az önteszt nem nyitja meg a normál profilt, nem használja a rendszer vágólapját, nem regisztrál globális gyorsbillentyűt, és a mintalap külső hálózati kéréseit blokkolja. Az offline képpróba a csatolást ellenőrzi, az OCR minőségét külön mérjük. Az NVIDIA-illesztőprogram profiljait az önteszt és a `--staging` mód sem módosítja; a forrásból indított Python-programban az automatikus profilkezelés nem fut.
 
 A `--staging` kapcsoló ideiglenes profillal nyitja meg az élő ChatGPT-t, kikapcsolt figyeléssel és rendszerintegrációk nélkül. A sütik csak a memóriában maradnak. Ez a helyi alkalmazás tesztmódja, nem az OpenAI belső tesztkörnyezete; a kézzel elküldött szöveg az élő szolgáltatáshoz kerül.
 
-- [Változtatások leírása](docs/changes.md)
+- [Korábbi változtatások leírása](docs/history/pre-gpttranslator/docs/changes.md)
 - [Telepítési útmutató](docs/deployment.md)
-- [Tesztelési jelentés](docs/test-report.md)
-- [OCR teljesítmény és bemenetkezelés](docs/ocr-performance.md)
-- [Biztonsági audit](docs/security-audit.md)
-- [Kódaláírás és Windows biztonsági ellenőrzés](docs/followup-security.md)
+- [Korábbi tesztelési jelentés](docs/history/pre-gpttranslator/docs/test-report.md)
+- [Korábbi OCR teljesítmény- és bemenetkezelési mérés](docs/history/pre-gpttranslator/docs/ocr-performance.md)
+- [Korábbi biztonsági audit](docs/history/pre-gpttranslator/docs/security-audit.md)
+- [Korábbi kódaláírási és Windows biztonsági ellenőrzés](docs/history/pre-gpttranslator/docs/followup-security.md)
+
+A korábbi jelentések változatlan bizonyítékai és a verzióhoz kötött mérések a [történeti dokumentációban](docs/history/README.md) szerepelnek. Az ottani EXE-nevek és hash-ek az átnevezés előtti kiadásokhoz tartoznak.
 
 ## Licenc
 

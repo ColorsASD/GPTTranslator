@@ -422,10 +422,10 @@ class ModernWebEngineTests(unittest.TestCase):
                        deliveryCallId="chromium-cancel", diagnosticCallId="chromium-cancel")
         self.raw_javascript(
             "window.__offlineCancellationResult=null;"
-            "window.__gamerTranslatorDeliver(" + json.dumps(payload) + ").then(result=>{window.__offlineCancellationResult=JSON.stringify(result);});"
+            "window.__gptTranslatorDeliver(" + json.dumps(payload) + ").then(result=>{window.__offlineCancellationResult=JSON.stringify(result);});"
             "window.__offlineCancelTimer=window.setInterval(()=>{"
-            "if((window.__gamerTranslatorDiagnostics?.['chromium-cancel']||[]).some(entry=>entry.event==='response_wait_started')) {"
-            "window.clearInterval(window.__offlineCancelTimer); window.__gamerTranslatorCancelDelivery('chromium-cancel');}},20);",
+            "if((window.__gptTranslatorDiagnostics?.['chromium-cancel']||[]).some(entry=>entry.event==='response_wait_started')) {"
+            "window.clearInterval(window.__offlineCancelTimer); window.__gptTranslatorCancelDelivery('chromium-cancel');}},20);",
             world=QWebEngineScript.ScriptWorldId.ApplicationWorld,
         )
         deadline = time.monotonic() + 5.0
@@ -439,9 +439,9 @@ class ModernWebEngineTests(unittest.TestCase):
         result = json.loads(serialized)
         self.assertFalse(result["ok"])
         self.assertTrue(result["cancelled"])
-        self.assertEqual(self.raw_javascript("window.__gamerTranslatorComposerAutoRecovery.suspendedCount", world=QWebEngineScript.ScriptWorldId.ApplicationWorld), 0)
+        self.assertEqual(self.raw_javascript("window.__gptTranslatorComposerAutoRecovery.suspendedCount", world=QWebEngineScript.ScriptWorldId.ApplicationWorld), 0)
         self.assertEqual(self.raw_javascript("document.body.dataset.submitCount"), "1")
-        self.assertEqual(self.raw_javascript("Object.keys(window.__gamerTranslatorAssistantResponseFollowUps||{}).length", world=QWebEngineScript.ScriptWorldId.ApplicationWorld), 0)
+        self.assertEqual(self.raw_javascript("Object.keys(window.__gptTranslatorAssistantResponseFollowUps||{}).length", world=QWebEngineScript.ScriptWorldId.ApplicationWorld), 0)
         next_result = self.deliver(prompt="Következő saját kérés", autoSubmit=False, copyResponseToClipboard=False, deliveryCallId="chromium-next")
         self.assertTrue(next_result["ok"])
         self.assertEqual(self.page.errors, [])

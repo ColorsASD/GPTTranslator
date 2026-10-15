@@ -22,8 +22,8 @@ param(
   [ValidateSet('CurrentUser', 'LocalMachine')]
   [string]$CertificateStore = 'CurrentUser',
 
-  [string]$InputPath = 'dist\staging\verified\Gamer Translator.exe',
-  [string]$OutputPath = 'dist\release-signed\Gamer Translator.exe'
+  [string]$InputPath = 'dist\staging\verified\GPTTranslator.exe',
+  [string]$OutputPath = 'dist\release-signed\GPTTranslator.exe'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -142,7 +142,7 @@ if (-not $PSCmdlet.ShouldProcess($destinationPath, $action)) {
 $destinationDirectory = Split-Path -Parent $destinationPath
 New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
 $temporaryDirectory = Join-Path $destinationDirectory ('.sign-' + [guid]::NewGuid().ToString('N'))
-$temporaryPath = Join-Path $temporaryDirectory 'Gamer Translator.exe'
+$temporaryPath = Join-Path $temporaryDirectory 'GPTTranslator.exe'
 Resolve-ReleasePath -Path $temporaryPath | Out-Null
 New-Item -ItemType Directory -Path $temporaryDirectory | Out-Null
 
@@ -153,7 +153,7 @@ try {
   }
 
   $signArguments = @('sign', '/sha1', $normalizedThumbprint, '/s', 'My', '/fd', 'SHA256',
-    '/tr', $TimestampUrl.AbsoluteUri, '/td', 'SHA256', '/d', 'Gamer Translator', '/v')
+    '/tr', $TimestampUrl.AbsoluteUri, '/td', 'SHA256', '/d', 'GPTTranslator', '/v')
   if ($CertificateStore -eq 'LocalMachine') {
     $signArguments += '/sm'
   }

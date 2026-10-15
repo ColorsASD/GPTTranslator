@@ -1,0 +1,1 @@
+"""GPTTranslator desktop alkalmazás."""

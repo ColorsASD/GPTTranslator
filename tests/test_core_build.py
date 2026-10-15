@@ -16,7 +16,7 @@ class BuildScriptTests(unittest.TestCase):
         self.root_dir = Path(self.temporary_dir.name)
         self.output_dir = self.root_dir / "staging output"
         self.output_dir.mkdir()
-        self.old_exe = self.output_dir / "Gamer Translator.exe"
+        self.old_exe = self.output_dir / "GPTTranslator.exe"
         self.old_exe.write_bytes(b"previous release")
         self.other_exe = self.output_dir / "Other.exe"
         self.other_exe.write_bytes(b"unrelated release")
@@ -40,7 +40,7 @@ if ($module -eq "PyInstaller") {
   $index = [Array]::IndexOf($args, "--distpath")
   $distPath = $args[$index + 1]
   New-Item -ItemType Directory -Path $distPath -Force | Out-Null
-  [IO.File]::WriteAllText((Join-Path $distPath "Gamer Translator.exe"), "new release")
+  [IO.File]::WriteAllText((Join-Path $distPath "GPTTranslator.exe"), "new release")
 }
 ''', encoding="utf-8")
 

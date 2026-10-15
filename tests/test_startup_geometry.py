@@ -14,8 +14,8 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWebEngineCore import QWebEngineUrlRequestInterceptor
 from PySide6.QtWidgets import QApplication
 
-from gamer_translator.main_window import MainWindow
-from gamer_translator.settings_store import SettingsStore
+from gpttranslator.main_window import MainWindow
+from gpttranslator.settings_store import SettingsStore
 
 
 class BlockStartupNetwork(QWebEngineUrlRequestInterceptor):

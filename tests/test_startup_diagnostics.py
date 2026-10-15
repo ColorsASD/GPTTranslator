@@ -14,8 +14,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QtMsgType
 
 import main
-from gamer_translator import diagnostics, ocr_service, self_test
-from gamer_translator.ocr_service import OCRAsset, OCRCandidate, OCRService
+from gpttranslator import diagnostics, ocr_service, self_test
+from gpttranslator.ocr_service import OCRAsset, OCRCandidate, OCRService
 
 
 def records_in(root: Path) -> list[dict]:
@@ -62,7 +62,7 @@ class StartupDiagnosticsTests(unittest.TestCase):
                 self.assertEqual(main.main(), 0)
                 isolated_root = setup.call_args.args[0]
                 self.assertNotEqual(isolated_root, self.root)
-                self.assertTrue(isolated_root.name.startswith("gamer-translator-test-diagnostics-"))
+                self.assertTrue(isolated_root.name.startswith("gpttranslator-test-diagnostics-"))
                 self.assertFalse(isolated_root.exists())
 
     def test_qt_warning_keeps_only_severity_and_length(self):
@@ -99,7 +99,7 @@ class StartupDiagnosticsTests(unittest.TestCase):
                 self.assertEqual(main._report_qt_import_failure(OSError("private DLL path")), 1)
                 setup.assert_called_once()
                 isolated_root = setup.call_args.args[0]
-                self.assertTrue(isolated_root.name.startswith("gamer-translator-test-diagnostics-"))
+                self.assertTrue(isolated_root.name.startswith("gpttranslator-test-diagnostics-"))
                 self.assertFalse(isolated_root.exists())
                 self.assertEqual(exception.call_args.kwargs["mode"], mode)
 

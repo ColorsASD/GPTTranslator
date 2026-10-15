@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import atexit
 import ctypes
+import hashlib
 import json
 import math
 import os
@@ -26,7 +27,10 @@ from typing import Any
 MAX_LOG_BYTES = 5 * 1024 * 1024
 BACKUP_COUNT = 5
 QUEUE_CAPACITY = 4096
-LOG_FILENAME = "gamer-translator.jsonl"
+LOG_FILENAME = "gpttranslator.jsonl"
+# A korábbi adatkönyvtár másolatának olvasásához és veszteségmentes átvételéhez.
+LEGACY_LOG_FILENAME = "gamer-translator.jsonl"
+MIGRATED_LOG_GLOB = "gpttranslator.migrated-*.jsonl"
 _TOKEN = re.compile(r"[A-Za-z0-9_.:-]{1,64}\Z")
 _EVENT = re.compile(r"[A-Za-z0-9_.:-]{1,96}\Z")
 _REQUEST_ID = re.compile(r"(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\Z")
@@ -80,7 +84,7 @@ _KNOWN_FILES = {
 }
 _KNOWN_FILES[os.path.normcase(str(_PACKAGE_DIR.parent / "main.py"))] = "main.py"
 _KNOWN_MODULES = {
-    f"gamer_translator.{Path(name).stem}": name for name in _KNOWN_FILES.values() if name != "main.py"
+    f"gpttranslator.{Path(name).stem}": name for name in _KNOWN_FILES.values() if name != "main.py"
 }
 _writer: _BackgroundWriter | None = None
 _setup_lock = threading.RLock()
@@ -148,7 +152,7 @@ class _BackgroundWriter:
         self.write_failures = 0
         self.file: Any = None
         self.file_size = 0
-        self.thread = threading.Thread(target=self._run, name="GamerTranslatorDiagnostics", daemon=True)
+        self.thread = threading.Thread(target=self._run, name="GPTTranslatorDiagnostics", daemon=True)
 
     def record(self, event: str, level: str, request_id: Any, fields: dict[str, Any]) -> dict[str, Any]:
         record = {
@@ -245,6 +249,58 @@ class _BackgroundWriter:
             self.thread.join(timeout=2.0)
 
 
+def iter_log_paths(directory: Path):
+    """Az átvett és forgatott naplókat a régi eseményektől az új aktív fájlig adja."""
+    yield from sorted(directory.glob(MIGRATED_LOG_GLOB))
+    for filename in (LEGACY_LOG_FILENAME, LOG_FILENAME):
+        for number in range(BACKUP_COUNT, 0, -1):
+            yield directory / f"{filename}.{number}"
+        yield directory / filename
+
+
+def _migrate_legacy_logs(directory: Path) -> None:
+    """A másolt régi naplókat érintetlen tartalmú, új nevű archívumokként őrzi meg.
+
+    Az aktív napló és forgatásai nem írhatják felül a korábbi eseményeket.
+    A hívó csak az új, kizárólagosan zárolt alkalmazáskönyvtárat adhatja át.
+    """
+    for number in range(BACKUP_COUNT, -1, -1):
+        source = directory / (LEGACY_LOG_FILENAME + (f".{number}" if number else ""))
+        temporary = directory / (".gpttranslator-log-import-" + uuid.uuid4().hex + ".tmp")
+        try:
+            before = source.stat()
+            digest = hashlib.sha256()
+            with source.open("rb") as original, temporary.open("xb") as target:
+                while chunk := original.read(256 * 1024):
+                    digest.update(chunk)
+                    target.write(chunk)
+                target.flush()
+                os.fsync(target.fileno())
+            after = source.stat()
+            if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+                continue
+            archive = directory / f"gpttranslator.migrated-{before.st_mtime_ns:020d}-{BACKUP_COUNT - number:02d}-{digest.hexdigest()}.jsonl"
+            try:
+                # Az atomi link nem írhat felül már létező archívumot.
+                os.link(temporary, archive)
+            except FileExistsError:
+                existing_digest = hashlib.sha256()
+                with archive.open("rb") as existing:
+                    while chunk := existing.read(256 * 1024):
+                        existing_digest.update(chunk)
+                if existing_digest.digest() != digest.digest():
+                    continue
+            source.unlink()
+        except (OSError, ValueError):
+            # Hibánál a régi fájl és az olvasóval elérhető eseményei megmaradnak.
+            continue
+        finally:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
 def setup_diagnostics(root_dir: Path, *, app_version: str = "unknown") -> Path:
     """Elindítja a helyi naplót; ugyanarra a könyvtárra ismételve nem indít új írót."""
     global _writer
@@ -255,6 +311,7 @@ def setup_diagnostics(root_dir: Path, *, app_version: str = "unknown") -> Path:
         previous, _writer = _writer, None
         if previous is not None:
             previous.shutdown()
+        _migrate_legacy_logs(directory)
         writer = _BackgroundWriter(directory, app_version)
         try:
             writer.thread.start()

@@ -14,8 +14,8 @@ from unittest.mock import Mock, patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import main
-from gamer_translator import nvidia_compat
-from gamer_translator.settings_store import AppSettings
+from gpttranslator import nvidia_compat
+from gpttranslator.settings_store import AppSettings
 
 
 class NvidiaStartupTests(unittest.TestCase):
@@ -23,7 +23,7 @@ class NvidiaStartupTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
-        self.executable = self.root / "Gamer Translator.exe"
+        self.executable = self.root / "GPTTranslator.exe"
         self.executable.write_bytes(b"MZ isolated startup fixture")
         self.settings = AppSettings()
         self.events = []
@@ -52,7 +52,7 @@ class NvidiaStartupTests(unittest.TestCase):
             self.events.append("restart")
             return Mock()
 
-        window_module = types.ModuleType("gamer_translator.main_window")
+        window_module = types.ModuleType("gpttranslator.main_window")
         window_module.MainWindow = Mock(side_effect=create_window)
         self.patches = [
             patch.object(main.sys, "frozen", True, create=True),
@@ -69,7 +69,7 @@ class NvidiaStartupTests(unittest.TestCase):
             patch.object(main, "SingleInstanceController", return_value=self.instance),
             patch.object(main.subprocess, "Popen", side_effect=restart),
             patch.object(nvidia_compat, "configure_nvidia_compatibility", side_effect=configure_driver),
-            patch.dict(sys.modules, {"gamer_translator.main_window": window_module}),
+            patch.dict(sys.modules, {"gpttranslator.main_window": window_module}),
         ]
         self.mocks = [patcher.start() for patcher in self.patches]
         for patcher in self.patches:
@@ -90,7 +90,7 @@ class NvidiaStartupTests(unittest.TestCase):
         original_import = builtins.__import__
 
         def no_driver_import(name, *_args, **_kwargs):
-            if name == "gamer_translator.nvidia_compat":
+            if name == "gpttranslator.nvidia_compat":
                 raise AssertionError("Forrásból nem kérhető driverbeállítás")
             return original_import(name, *_args, **_kwargs)
 
@@ -125,7 +125,7 @@ class NvidiaStartupTests(unittest.TestCase):
         main.sys.argv = [str(self.executable), "--nvidia-compat-restarted", "--self-test-duration", "25"]
         os.environ["_PYI_PARENT_PROCESS_LEVEL"] = "1"
         os.environ["_PYI_APPLICATION_HOME_DIR"] = "existing-extraction-directory"
-        os.environ["GAMER_TRANSLATOR_STARTUP_TEST"] = "inherited-value"
+        os.environ["GPTTRANSLATOR_STARTUP_TEST"] = "inherited-value"
         os.environ["PYINSTALLER_RESET_ENVIRONMENT"] = "0"
         self.assertEqual(main._run_normal(), 0)
         self.assertEqual(self.events, ["environment", "driver", "restart"])
@@ -142,7 +142,7 @@ class NvidiaStartupTests(unittest.TestCase):
         self.assertEqual(options["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
         self.assertEqual(options["env"]["_PYI_PARENT_PROCESS_LEVEL"], "1")
         self.assertEqual(options["env"]["_PYI_APPLICATION_HOME_DIR"], "existing-extraction-directory")
-        self.assertEqual(options["env"]["GAMER_TRANSLATOR_STARTUP_TEST"], "inherited-value")
+        self.assertEqual(options["env"]["GPTTRANSLATOR_STARTUP_TEST"], "inherited-value")
         self.assertNotIn("shell", options)
 
     def test_already_configured_profile_continues_to_qt_after_driver_check(self):
@@ -194,7 +194,7 @@ class NvidiaStartupTests(unittest.TestCase):
         self.qt_constructor.assert_not_called()
 
     def isolated_test_mode(self, arguments: list[str], mode: str):
-        module = types.ModuleType("gamer_translator.self_test")
+        module = types.ModuleType("gpttranslator.self_test")
         module.run_self_test = Mock(return_value=0)
         module.run_staging = Mock(return_value=0)
         diagnostic_roots = []
@@ -202,7 +202,7 @@ class NvidiaStartupTests(unittest.TestCase):
         def run_mode(root, observed_mode, runner):
             self.assertEqual(observed_mode, mode)
             self.assertNotEqual(root, self.root)
-            self.assertTrue(root.name.startswith("gamer-translator-test-diagnostics-"))
+            self.assertTrue(root.name.startswith("gpttranslator-test-diagnostics-"))
             diagnostic_roots.append(root)
             return runner()
 
@@ -211,7 +211,7 @@ class NvidiaStartupTests(unittest.TestCase):
                 patch.object(main, "_configure_nvidia_compatibility", side_effect=AssertionError("Driver tesztmódban")) as helper, \
                 patch.object(main, "default_app_data_dir", side_effect=AssertionError("Normál profil tesztmódban")), \
                 patch.object(main, "SettingsStore", side_effect=AssertionError("Normál beállítások tesztmódban")), \
-                patch.dict(sys.modules, {"gamer_translator.self_test": module}):
+                patch.dict(sys.modules, {"gpttranslator.self_test": module}):
             self.assertEqual(main.main(), 0)
         helper.assert_not_called()
         self.driver.assert_not_called()

@@ -27,8 +27,8 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase, QLinearGradient, QPainte
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWebEngineCore import QWebEngineUrlRequestInterceptor
 
-from gamer_translator.main_window import MainWindow, QuickChatOverlay
-from gamer_translator.settings_store import SettingsStore
+from gpttranslator.main_window import MainWindow, QuickChatOverlay
+from gpttranslator.settings_store import SettingsStore
 
 
 OFFLINE_BROWSER_HTML = """<!doctype html>

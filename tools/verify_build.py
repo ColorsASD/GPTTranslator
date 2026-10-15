@@ -9,6 +9,7 @@ import json
 import marshal
 import re
 import ssl
+import struct
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,8 +18,10 @@ import pefile
 from PyInstaller.archive.readers import CArchiveReader
 
 root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(root))
+from gpttranslator.defaults import APP_NAME, APP_VERSION
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("executable", nargs="?", type=Path, default=root / "dist" / "staging" / "Gamer Translator.exe")
+parser.add_argument("executable", nargs="?", type=Path, default=root / "dist" / "staging" / "GPTTranslator.exe")
 executable = parser.parse_args().executable.resolve()
 archive = CArchiveReader(str(executable))
 entries = {name.replace("\\", "/"): name for name in archive.toc}
@@ -27,7 +30,37 @@ pyz = archive.open_embedded_archive(pyz_entry)
 checks: dict[str, bool] = {}
 source_hashes: dict[str, str] = {}
 
-source_paths = ["main.py", *(path.relative_to(root).as_posix() for path in sorted((root / "gamer_translator").glob("*.py")) if path.name != "__init__.py")]
+# A csomag neve mellett a Windows által olvasott PE-verzió és ikon is ellenőrzött.
+executable_pe = pefile.PE(str(executable))
+version_strings = {}
+for group in getattr(executable_pe, "FileInfo", []):
+    for info in group:
+        for table in getattr(info, "StringTable", []):
+            version_strings.update({key.decode("utf-8"): value.decode("utf-8") for key, value in table.entries.items()})
+for key, expected in {
+    "CompanyName": "ColorsASD", "FileDescription": APP_NAME,
+    "InternalName": APP_NAME, "OriginalFilename": f"{APP_NAME}.exe",
+    "ProductName": APP_NAME, "FileVersion": APP_VERSION, "ProductVersion": APP_VERSION,
+}.items():
+    checks[f"branding:{key}"] = version_strings.get(key) == expected
+icon_data = (root / "gpttranslator/assets/icon.ico").read_bytes()
+icon_count = struct.unpack_from("<H", icon_data, 4)[0]
+expected_icons = []
+for index in range(icon_count):
+    size, offset = struct.unpack_from("<II", icon_data, 6 + index * 16 + 8)
+    expected_icons.append(icon_data[offset:offset + size])
+stored_icons = []
+for resource_type in executable_pe.DIRECTORY_ENTRY_RESOURCE.entries:
+    if resource_type.id != pefile.RESOURCE_TYPE["RT_ICON"]:
+        continue
+    for icon_entry in resource_type.directory.entries:
+        for language in icon_entry.directory.entries:
+            data = language.data.struct
+            stored_icons.append(executable_pe.get_data(data.OffsetToData, data.Size))
+checks["branding:application icon"] = bool(expected_icons) and all(icon in stored_icons for icon in expected_icons)
+executable_pe.close()
+
+source_paths = ["main.py", *(path.relative_to(root).as_posix() for path in sorted((root / "gpttranslator").glob("*.py")) if path.name != "__init__.py")]
 
 for relative_path in source_paths:
     module_name = relative_path.removesuffix(".py").replace("/", ".")
@@ -37,7 +70,7 @@ for relative_path in source_paths:
     checks[f"source:{relative_path}"] = stored_code == expected_code
     source_hashes[relative_path] = hashlib.sha256((root / relative_path).read_bytes()).hexdigest()
 
-for relative_path in ("gamer_translator/automation.js", "gamer_translator/assets/icon-128.png", "gamer_translator/assets/check.svg"):
+for relative_path in ("gpttranslator/automation.js", "gpttranslator/assets/icon-128.png", "gpttranslator/assets/check.svg"):
     checks[f"asset:{relative_path}"] = relative_path in entries and archive.extract(entries[relative_path]) == (root / relative_path).read_bytes()
 
 for suffix in ("QtWebEngineProcess.exe", "Qt6WebEngineCore.dll", "Qt6Svg.dll", "QtSvg.pyd", "qtwebengine_resources.pak", "icudtl.dat", "qwindows.dll", "onnxruntime_pybind11_state.pyd"):

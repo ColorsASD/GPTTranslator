@@ -1,4 +1,4 @@
-"""Tartalommentes Gamer Translator napló olvasása idővonalként vagy összesítésként.
+"""Tartalommentes GPTTranslator napló olvasása idővonalként vagy összesítésként.
 
 Példa: python tools/read_diagnostics.py --last 200 --level ERROR
 """
@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from gamer_translator import diagnostics
+from gpttranslator import diagnostics
 
 
 _ID = re.compile(r"[0-9a-fA-F]{32}\Z")
@@ -39,7 +39,7 @@ class ReadStats:
 def default_log_directory() -> Path:
     """A profil inicializálása és a beállítások olvasása nélkül keresi a naplóhelyet."""
     local_app_data = os.environ.get("LOCALAPPDATA")
-    root = Path(local_app_data) / "Gamer Translator" if local_app_data else Path.home() / ".gamer-translator"
+    root = Path(local_app_data) / "GPTTranslator" if local_app_data else Path.home() / ".gpttranslator"
     return root / "logs"
 
 
@@ -79,11 +79,9 @@ def sanitize_record(raw: Any) -> dict[str, Any] | None:
 
 def iter_records(directory: Path, stats: ReadStats) -> Iterator[dict[str, Any]]:
     """A forgatott fájlokat a legrégebbitől az aktív naplóig dolgozza fel."""
-    names = [f"{diagnostics.LOG_FILENAME}.{number}" for number in range(diagnostics.BACKUP_COUNT, 0, -1)]
-    names.append(diagnostics.LOG_FILENAME)
-    for name in names:
+    for path in diagnostics.iter_log_paths(directory):
         try:
-            with (directory / name).open("rb") as handle:
+            with path.open("rb") as handle:
                 stats.files_read += 1
                 while line := handle.readline(_MAX_LINE_BYTES + 1):
                     if len(line) > _MAX_LINE_BYTES:

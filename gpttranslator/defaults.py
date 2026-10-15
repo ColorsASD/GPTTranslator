@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-APP_NAME = "Gamer Translator"
+APP_NAME = "GPTTranslator"
 APP_VERSION = "6.0"
 WINDOW_TITLE = APP_NAME
 CHATGPT_URL = "https://chatgpt.com/"

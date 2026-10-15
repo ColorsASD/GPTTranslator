@@ -12,8 +12,8 @@ from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication, QLineEdit
 
-from gamer_translator import hotkeys as module
-from gamer_translator.hotkeys import (
+from gpttranslator import hotkeys as module
+from gpttranslator.hotkeys import (
     HotkeyEdit, MOD_ALT, MOD_ALTGR, MOD_CONTROL, MOD_SHIFT, MOD_WIN,
     active_hotkey_editor, current_hotkey_modifiers, format_hotkey_definition, parse_hotkey_definition,
 )

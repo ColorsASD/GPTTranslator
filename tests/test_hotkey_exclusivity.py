@@ -8,8 +8,8 @@ from unittest.mock import Mock, patch
 
 from test_mouse_hotkeys import hotkey_window
 
-from gamer_translator import main_window as module
-from gamer_translator.main_window import MainWindow
+from gpttranslator import main_window as module
+from gpttranslator.main_window import MainWindow
 
 
 class HotkeyExclusivityTests(unittest.TestCase):

@@ -22,8 +22,12 @@ from typing import Any, Callable
 
 SETTING_ID = 0x10A879CF  # NVAPI VRR_APP_OVERRIDE_ID
 SETTING_VALUE = 1  # NVAPI VRR_APP_OVERRIDE_FORCE_OFF
-CREATOR = "gamer_translator.nvidia_compat/v1"
-PROFILE_PREFIX = "ColorsASD Gamer Translator - auto "
+CREATOR = "gpttranslator.nvidia_compat/v1"
+PROFILE_PREFIX = "ColorsASD GPTTranslator - auto "
+# Csak a korábban saját journalból létrehozott profilok átnevezéséhez.
+LEGACY_CREATOR = "gamer_translator.nvidia_compat/v1"
+LEGACY_PROFILE_PREFIX = "ColorsASD Gamer Translator - auto "
+LEGACY_FRIENDLY_NAME = "Gamer Translator"
 _UNSUPPORTED = {-2, -3, -6, -104}
 _U32, _U16, _HANDLE = C.c_uint32, C.c_uint16, C.c_void_p
 _UNICODE = _U16 * 2048
@@ -232,7 +236,7 @@ class NvApiSession:
         info.name = _unicode(name)
         self._check("CreateProfile", self.handle, C.byref(info), C.byref(handle))
         app = _structure(_Application, 4)
-        app.app, app.friendly = _unicode(executable), _unicode("Gamer Translator")
+        app.app, app.friendly = _unicode(executable), _unicode("GPTTranslator")
         self._check("CreateApplication", self.handle, handle, C.byref(app))
         return {"handle": handle.value}
 
@@ -271,12 +275,12 @@ def _read_state(path: Path) -> dict[str, Any] | None:
         return None
 
 
-def _state_owned(state: dict[str, Any] | None, executable: str, name: str) -> bool:
+def _state_owned(state: dict[str, Any] | None, executable: str, name: str, *, creator: str = CREATOR) -> bool:
     if not state:
         return False
     try:
         uuid.UUID(state["transaction_uuid"])
-        return (state.get("schema") == 1 and state.get("created_by") == CREATOR
+        return (state.get("schema") == 1 and state.get("created_by") == creator
                 and _path_key(state["application"]) == _path_key(executable)
                 and state.get("profile_name") == name
                 and state.get("setting_id") == SETTING_ID and state.get("setting_value") == SETTING_VALUE
@@ -293,8 +297,9 @@ def _force_off(profile: dict[str, Any] | None) -> bool:
 
 
 def _owned_profile(profile: dict[str, Any] | None, state: dict[str, Any] | None,
-                   executable: str, name: str) -> bool:
-    if not _state_owned(state, executable, name) or not profile:
+                   executable: str, name: str, *, creator: str = CREATOR,
+                   friendly_name: str = "GPTTranslator") -> bool:
+    if not _state_owned(state, executable, name, creator=creator) or not profile:
         return False
     apps, settings = profile.get("applications", []), profile.get("settings", [])
     if (profile.get("name") != name or profile.get("predefined") is not False
@@ -303,13 +308,100 @@ def _owned_profile(profile: dict[str, Any] | None, state: dict[str, Any] | None,
         return False
     app = apps[0]
     return (_path_key(app.get("path", "")) == _path_key(executable)
-            and app.get("friendly") == "Gamer Translator" and app.get("predefined") is False
+            and app.get("friendly") == friendly_name and app.get("predefined") is False
             and app.get("launcher") == "" and app.get("file_in_folder") == ""
             and app.get("flags") == 0 and app.get("command_line") == ""
             and settings[0] == {"id": SETTING_ID, "type": 0, "value": SETTING_VALUE,
                                 "location": 0, "predefined": False}
             and _force_off(profile) and profile["override"].get("location") == 0
             and profile["override"].get("predefined") is False)
+
+
+def _migrate_legacy_profiles(state_dir: Path, session_factory: Callable[[], Any], *, enabled: bool) -> dict[str, int]:
+    """Csak teljes, változatlan saját profilt nevez át; a journal őrzi a mentési szándékot."""
+    migrated = skipped = 0
+    for state_path in sorted(state_dir.glob("*.json")):
+        state = _read_state(state_path)
+        if not state or state.get("created_by") != LEGACY_CREATOR:
+            continue
+        path = state.get("application")
+        if not isinstance(path, str) or not Path(path).is_absolute():
+            continue
+        name = profile_name_for(path)
+        suffix = name.removeprefix(PROFILE_PREFIX)
+        legacy_name = LEGACY_PROFILE_PREFIX + suffix
+        if state_path.name != suffix + ".json" or not _state_owned(state, path, legacy_name, creator=LEGACY_CREATOR):
+            continue
+        intent = state.get("brand_migration")
+        if not (isinstance(intent, dict) and intent.get("target_profile_name") == name
+                and intent.get("target_absent") is True and isinstance(intent.get("transaction_uuid"), str)):
+            intent = None
+        if intent:
+            try:
+                uuid.UUID(intent["transaction_uuid"])
+            except ValueError:
+                intent = None
+        derived = {**state, "created_by": CREATOR, "profile_name": name,
+                   "transaction_uuid": intent["transaction_uuid"] if intent else str(uuid.uuid4()),
+                   "stage": "applied", "migrated_from_profile_name": legacy_name,
+                   "migrated_from_transaction_uuid": state["transaction_uuid"]}
+        derived.pop("brand_migration", None)
+        save_error = None
+        with session_factory() as session:
+            application = session.find_application(path)
+            legacy, current = session.find_profile(legacy_name), session.find_profile(name)
+            if legacy is None:
+                # A drivermentés és a journal lezárása közötti korábbi leállás helyreállítása.
+                if intent and current is not None and application is not None \
+                        and application.get("handle") == current.get("handle") \
+                        and _owned_profile(current, derived, path, name):
+                    _persist(state_path, derived)
+                    migrated += 1
+                continue
+            if (application is None or application.get("handle") != legacy.get("handle")
+                    or not _owned_profile(legacy, state, path, legacy_name,
+                                          creator=LEGACY_CREATOR, friendly_name=LEGACY_FRIENDLY_NAME)
+                    or current is not None):
+                skipped += 1
+                continue
+            if enabled:
+                if not intent:
+                    intent = {"target_profile_name": name, "target_absent": True,
+                              "transaction_uuid": derived["transaction_uuid"]}
+                    state["brand_migration"] = intent
+                    _persist(state_path, state)
+                session.delete_profile(legacy)
+                own = session.create_profile(name, path)
+                session.set_force_off(own)
+            else:
+                state["stage"] = "restore_pending"
+                _persist(state_path, state)
+                session.delete_profile(legacy)
+            try:
+                session.save()
+            except Exception as error:
+                save_error = error
+        # Csak a driver frissen betöltött, külön sessionből olvasott állapota igazol.
+        with session_factory() as session:
+            application = session.find_application(path)
+            legacy, current = session.find_profile(legacy_name), session.find_profile(name)
+        verified = legacy is None and (
+            (application is not None and current is not None
+             and application.get("handle") == current.get("handle")
+             and _owned_profile(current, derived, path, name)) if enabled
+            else application is None
+        )
+        if not verified:
+            if save_error:
+                raise save_error
+            raise NvApiError("VerifyLegacyMigration", -1)
+        if not enabled:
+            derived = {**state, "stage": "restored"}
+        if isinstance(save_error, NvApiError):
+            derived["recovered_save_error"] = save_error.status
+        _persist(state_path, derived)
+        migrated += 1
+    return {"legacy_profiles_migrated": migrated, "legacy_profiles_skipped": skipped}
 
 
 def configure_nvidia_compatibility(executable: Path, *, enabled: bool = True, state_dir: Path,
@@ -331,6 +423,10 @@ def configure_nvidia_compatibility(executable: Path, *, enabled: bool = True, st
         executable = Path(executable).resolve(strict=True)
         if not executable.is_file() or executable.suffix.lower() != ".exe":
             raise ValueError("Érvénytelen alkalmazásútvonal.")
+        migration = _migrate_legacy_profiles(Path(state_dir), session_factory, enabled=enabled)
+        if any(migration.values()):
+            result.update(migration)
+            result["changed"] = migration["legacy_profiles_migrated"] > 0
         path, name = str(executable), profile_name_for(executable)
         state_path = Path(state_dir) / (name.removeprefix(PROFILE_PREFIX) + ".json")
         state = _read_state(state_path)

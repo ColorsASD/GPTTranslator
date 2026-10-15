@@ -15,8 +15,8 @@ from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from gamer_translator.main_window import MainWindow
-from gamer_translator.settings_store import AppSettings, SettingsStore
+from gpttranslator.main_window import MainWindow
+from gpttranslator.settings_store import AppSettings, SettingsStore
 
 
 class DesignInterfaceTests(unittest.TestCase):
@@ -168,10 +168,10 @@ class DesignInterfaceTests(unittest.TestCase):
         self.window._restart_application.assert_not_called()
 
     def test_user_restart_starts_a_new_driver_configuration_cycle(self):
-        executable = self.store.root_dir / "Gamer Translator.exe"
+        executable = self.store.root_dir / "GPTTranslator.exe"
         executable.touch()
-        with patch("gamer_translator.main_window.sys.frozen", True, create=True), \
-                patch("gamer_translator.main_window.sys.argv", [str(executable), "--nvidia-compat-restarted"]):
+        with patch("gpttranslator.main_window.sys.frozen", True, create=True), \
+                patch("gpttranslator.main_window.sys.argv", [str(executable), "--nvidia-compat-restarted"]):
             self.assertEqual(self.window._build_restart_command(), [str(executable.resolve())])
 
     def test_initial_content_is_the_full_width_chatgpt_browser(self):

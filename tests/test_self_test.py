@@ -19,9 +19,9 @@ from PySide6.QtWidgets import QApplication
 from shiboken6 import isValid
 
 import main
-from gamer_translator import main_window
-from gamer_translator import self_test
-from gamer_translator.settings_store import SettingsStore
+from gpttranslator import main_window
+from gpttranslator import self_test
+from gpttranslator.settings_store import SettingsStore
 
 
 class TestModeDispatchTests(unittest.TestCase):
@@ -105,7 +105,7 @@ import json
 from pathlib import Path
 from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtWidgets import QApplication
-from gamer_translator import self_test
+from gpttranslator import self_test
 state = {"fallback": False}
 original = self_test.IsolatedWindow
 class ProbeWindow(original):

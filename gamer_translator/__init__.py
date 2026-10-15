@@ -1,1 +1,0 @@
-"""Gamer Translator desktop alkalmazás."""

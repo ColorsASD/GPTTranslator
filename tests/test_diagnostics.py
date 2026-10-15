@@ -14,7 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from gamer_translator import diagnostics as module
+from gpttranslator import diagnostics as module
 from tools import read_diagnostics
 
 
@@ -65,6 +65,44 @@ class DiagnosticsTests(unittest.TestCase):
             self.assertGreaterEqual(record["monotonic_ms"], 0)
         self.assertEqual(records[-1]["event"], "diagnostics.session_stopped")
         self.assertIsNone(module.get_log_directory())
+
+    def test_legacy_logs_are_preserved_byte_for_byte_as_new_brand_archives(self) -> None:
+        directory = self.root / "logs"; directory.mkdir()
+        legacy_bytes = b'{"event":"legacy.first"}\n' + b'{"truncated":"kept'
+        legacy = directory / module.LEGACY_LOG_FILENAME; legacy.write_bytes(legacy_bytes)
+        backup = directory / f"{module.LEGACY_LOG_FILENAME}.1"; backup.write_bytes(b"older raw bytes\n")
+        current = directory / module.LOG_FILENAME; current.write_bytes(b"existing current bytes\n")
+        module._migrate_legacy_logs(directory)
+        archives = list(directory.glob(module.MIGRATED_LOG_GLOB))
+        self.assertEqual(len(archives), 2)
+        self.assertEqual({path.read_bytes() for path in archives}, {legacy_bytes, b"older raw bytes\n"})
+        self.assertEqual(current.read_bytes(), b"existing current bytes\n")
+        self.assertFalse(legacy.exists()); self.assertFalse(backup.exists())
+        before = {path.name: path.read_bytes() for path in archives}
+        module._migrate_legacy_logs(directory)
+        self.assertEqual({path.name: path.read_bytes() for path in directory.glob(module.MIGRATED_LOG_GLOB)}, before)
+        self.assertFalse(list(directory.glob("*.tmp")))
+
+    def test_legacy_log_migration_failure_retains_original_without_partial_archive(self) -> None:
+        directory = self.root / "logs"; directory.mkdir()
+        legacy = directory / module.LEGACY_LOG_FILENAME; legacy.write_bytes(b"all legacy bytes\n")
+        with patch.object(module.os, "link", side_effect=OSError("Mesterséges fájlrendszerhiba")):
+            module._migrate_legacy_logs(directory)
+        self.assertEqual(legacy.read_bytes(), b"all legacy bytes\n")
+        self.assertFalse(list(directory.glob(module.MIGRATED_LOG_GLOB)))
+        self.assertFalse(list(directory.glob("*.tmp")))
+
+    def test_startup_reads_migrated_legacy_history_before_new_events(self) -> None:
+        directory = self.root / "logs"; directory.mkdir()
+        legacy_record = {"timestamp": "2026-10-01T01:24:09.123+02:00", "event": "legacy.valid", "level": "INFO"}
+        (directory / module.LEGACY_LOG_FILENAME).write_text(json.dumps(legacy_record) + "\n", encoding="utf-8")
+        module.setup_diagnostics(self.root, app_version="6.1")
+        module.log_event("current.valid")
+        module.shutdown_diagnostics()
+        events = [record["event"] for record in read_diagnostics.iter_records(directory, read_diagnostics.ReadStats())]
+        self.assertEqual(events[0], "legacy.valid")
+        self.assertIn("current.valid", events)
+        self.assertTrue((directory / "gpttranslator.jsonl").is_file())
 
     def test_only_explicit_metadata_survives_and_hostile_objects_are_not_stringified(self) -> None:
         class Hostile:

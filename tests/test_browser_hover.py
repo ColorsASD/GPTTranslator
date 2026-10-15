@@ -20,8 +20,8 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngin
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication
 
-from gamer_translator.main_window import MainWindow
-from gamer_translator.settings_store import SettingsStore
+from gpttranslator.main_window import MainWindow
+from gpttranslator.settings_store import SettingsStore
 
 
 HOVER_FIXTURE = """<!doctype html><html><head><meta charset="utf-8"><link rel="icon" href="data:,"><style>

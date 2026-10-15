@@ -9,9 +9,9 @@ from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from gamer_translator import main_window as module
-from gamer_translator.main_window import MainWindow
-from gamer_translator.settings_store import AppSettings
+from gpttranslator import main_window as module
+from gpttranslator.main_window import MainWindow
+from gpttranslator.settings_store import AppSettings
 
 
 class TranslationRequestTests(unittest.TestCase):

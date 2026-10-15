@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlparse
 
-from PySide6.QtCore import QBuffer, QEasingCurve, QEvent, QEventLoop, QIODevice, QPoint, Property, QPropertyAnimation, QRectF, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QBuffer, QEasingCurve, QEvent, QEventLoop, QIODevice, QPoint, Property, QPropertyAnimation, QRectF, QSignalBlocker, QThread, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QCursor, QGuiApplication, QIcon, QMouseEvent, QPainterPath, QPixmap, QPointingDevice, QRegion
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -61,7 +61,7 @@ from .hotkeys import (
 from .ocr_service import OCRService
 from .settings_store import AppSettings, LastRunStatus, SettingsStore
 
-BROWSER_CONSOLE_DEBUG = os.environ.get("GAMER_TRANSLATOR_DEBUG_BROWSER", "").strip() == "1"
+BROWSER_CONSOLE_DEBUG = os.environ.get("GPTTRANSLATOR_DEBUG_BROWSER", "").strip() == "1"
 UI_FRAME_INTERVAL_MS = 20
 UI_FRAME_INTERVAL_SECONDS = UI_FRAME_INTERVAL_MS / 1000.0
 GAME_MODE_BACKGROUND_FRAME_INTERVAL_MS = 40
@@ -71,7 +71,7 @@ SUSPENDED_FRAME_INTERVAL_MS = 1200
 BACKGROUND_TASK_EVENT_INTERVAL_MS = 40
 SCREEN_CLIP_ARM_TIMEOUT_SECONDS = 45.0
 AUTOMATION_SELF_HEAL_TIMEOUT_BUFFER_MS = 70000
-AUTOMATION_SCRIPT_VERSION = "2026-10-03-2"
+AUTOMATION_SCRIPT_VERSION = "2026-10-15-gpttranslator-1"
 INTERACTION_HEARTBEAT_INTERVAL_MS = 250
 INTERACTION_STALE_RESET_SECONDS = 8.0
 RESPONSE_FOLLOWUP_IDLE_TIMEOUT_SECONDS = 20.0
@@ -1065,6 +1065,18 @@ class BrowserJavaScriptTimeout(RuntimeError):
     """A renderer visszahívása késett; a művelet még futhat az oldalon."""
 
 
+class BrowserEventLoopError(RuntimeError):
+    """A natív eseményhurok nem várakozott; ez nem renderer-időtúllépés."""
+
+
+def _ensure_gui_event_thread(window: Any) -> None:
+    app = QApplication.instance()
+    if app is None or QThread.currentThread() != app.thread():
+        log_event("browser.event_loop_failed", level="ERROR",
+                  request_id=getattr(window, "active_translation_request_id", None), reason="wrong_thread")
+        raise BrowserEventLoopError("A böngészőművelet csak a program felületi szálán futtatható.")
+
+
 class MainWindow(QMainWindow):
     browser_operations_cancelled = Signal()
     def __init__(self, *, store: SettingsStore | None = None, clipboard: Any = None,
@@ -1077,11 +1089,11 @@ class MainWindow(QMainWindow):
         self.store = store if store is not None else SettingsStore()
         self.private_browser = private_browser
         self.ocr_service = OCRService(self.store.root_dir / "ocr")
-        self.background_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gamer_translator")
+        self.background_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gpttranslator")
         self.current_background_future: Future[Any] | None = None
         self.settings = self.store.load_settings()
         self.last_run_status = self.store.load_last_run_status()
-        self.automation_script = resource_path("gamer_translator/automation.js").read_text(encoding="utf-8")
+        self.automation_script = resource_path("gpttranslator/automation.js").read_text(encoding="utf-8")
 
         self.page_loading = False
         self.automation_ready = False
@@ -1352,11 +1364,11 @@ class MainWindow(QMainWindow):
 
     def _apply_styles(self) -> None:
         from .design_theme import STYLESHEET
-        check_path = resource_path("gamer_translator/assets/check.svg").as_posix()
+        check_path = resource_path("gpttranslator/assets/check.svg").as_posix()
         self.centralWidget().setStyleSheet(STYLESHEET.replace("CHECK_MARK_ASSET", check_path))
 
     def _load_title_icon(self) -> None:
-        icon_path = resource_path("gamer_translator/assets/icon-128.png")
+        icon_path = resource_path("gpttranslator/assets/icon-128.png")
 
         if not icon_path.exists():
             return
@@ -1414,7 +1426,7 @@ class MainWindow(QMainWindow):
         self.translation_overlay.set_overlay_opacity_percent(safe_value)
 
     def _apply_window_icon(self) -> None:
-        icon_path = resource_path("gamer_translator/assets/icon-128.png")
+        icon_path = resource_path("gpttranslator/assets/icon-128.png")
 
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
@@ -1597,8 +1609,8 @@ class MainWindow(QMainWindow):
                     (() => ({
                       readyState: document.readyState,
                       visibilityState: document.visibilityState,
-                      hasAutomation: typeof window.__gamerTranslatorDeliver === "function"
-                        && window.__gamerTranslatorDeliverVersion === "%s",
+                      hasAutomation: typeof window.__gptTranslatorDeliver === "function"
+                        && window.__gptTranslatorDeliverVersion === "%s",
                       keepAliveAt: Date.now()
                     }))()
                 """ % AUTOMATION_SCRIPT_VERSION,
@@ -1791,7 +1803,7 @@ class MainWindow(QMainWindow):
         else:
             working_directory = str(Path(__file__).resolve().parents[1])
 
-        script_path = Path(tempfile.gettempdir()) / f"gamer_translator_restart_{os.getpid()}_{uuid.uuid4().hex}.ps1"
+        script_path = Path(tempfile.gettempdir()) / f"gpttranslator_restart_{os.getpid()}_{uuid.uuid4().hex}.ps1"
         script_lines = [
             f"$ParentPid = {os.getpid()}",
             "while (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue) {",
@@ -2392,12 +2404,12 @@ class MainWindow(QMainWindow):
             self._run_javascript(
                 f"""
                     (() => {{
-                      if ({str(stop_remote).lower()} && typeof window.__gamerTranslatorStopResponseFollowUp === "function") {{
-                        window.__gamerTranslatorStopResponseFollowUp({json.dumps(current_progress_call_id)}, {{ emitDone: false }});
+                      if ({str(stop_remote).lower()} && typeof window.__gptTranslatorStopResponseFollowUp === "function") {{
+                        window.__gptTranslatorStopResponseFollowUp({json.dumps(current_progress_call_id)}, {{ emitDone: false }});
                       }}
-                      const progressBucket = window.__gamerTranslatorProgress || Object.create(null);
+                      const progressBucket = window.__gptTranslatorProgress || Object.create(null);
                       delete progressBucket[{json.dumps(current_progress_call_id)}];
-                      const diagnosticBucket = window.__gamerTranslatorDiagnostics || Object.create(null);
+                      const diagnosticBucket = window.__gptTranslatorDiagnostics || Object.create(null);
                       delete diagnosticBucket[{json.dumps(diagnostic_call_id)}];
                       return true;
                     }})()
@@ -2444,8 +2456,8 @@ class MainWindow(QMainWindow):
             progress_json = self._run_javascript(
                 f"""
                     (() => {{
-                      const progressBucket = window.__gamerTranslatorProgress || Object.create(null);
-                      const diagnosticBucket = window.__gamerTranslatorDiagnostics || Object.create(null);
+                      const progressBucket = window.__gptTranslatorProgress || Object.create(null);
+                      const diagnosticBucket = window.__gptTranslatorDiagnostics || Object.create(null);
                       const diagnostics = diagnosticBucket[{json.dumps(diagnostic_call_id)}] || [];
                       return JSON.stringify({{ progress: progressBucket[{json.dumps(progress_call_id)}] ?? null, diagnostics }});
                     }})()
@@ -3567,10 +3579,10 @@ class MainWindow(QMainWindow):
         covered = self.drawer_open
         proxy = self.browser.focusProxy()
         if proxy is not None:
-            saved = proxy.property("gamerTranslatorFocusPolicy")
+            saved = proxy.property("gptTranslatorFocusPolicy")
             if saved is None:
                 saved = int(proxy.focusPolicy())
-                proxy.setProperty("gamerTranslatorFocusPolicy", saved)
+                proxy.setProperty("gptTranslatorFocusPolicy", saved)
             proxy.setFocusPolicy(Qt.FocusPolicy.NoFocus if covered else Qt.FocusPolicy(saved))
         self.browser.setFocusPolicy(Qt.FocusPolicy.NoFocus if covered else Qt.FocusPolicy.StrongFocus)
 
@@ -3602,7 +3614,7 @@ class MainWindow(QMainWindow):
             self._sync_browser_runtime_state()
 
             ready = self._run_javascript(
-                f"typeof window.__gamerTranslatorDeliver === 'function' && window.__gamerTranslatorDeliverVersion === '{AUTOMATION_SCRIPT_VERSION}';",
+                f"typeof window.__gptTranslatorDeliver === 'function' && window.__gptTranslatorDeliverVersion === '{AUTOMATION_SCRIPT_VERSION}';",
                 timeout_ms=5000,
             )
 
@@ -3613,7 +3625,7 @@ class MainWindow(QMainWindow):
             log_event("browser.automation_injected", source="application_world")
             self._run_javascript(self.automation_script, timeout_ms=10000)
             ready = self._run_javascript(
-                f"typeof window.__gamerTranslatorDeliver === 'function' && window.__gamerTranslatorDeliverVersion === '{AUTOMATION_SCRIPT_VERSION}';",
+                f"typeof window.__gptTranslatorDeliver === 'function' && window.__gptTranslatorDeliverVersion === '{AUTOMATION_SCRIPT_VERSION}';",
                 timeout_ms=5000,
             )
 
@@ -3649,17 +3661,17 @@ class MainWindow(QMainWindow):
         payload_json = json.dumps(payload_with_progress, ensure_ascii=False).replace("</", "<\\/")
         launch_script = f"""
             (() => {{
-              window.__gamerTranslatorResults = window.__gamerTranslatorResults || Object.create(null);
-              window.__gamerTranslatorProgress = window.__gamerTranslatorProgress || Object.create(null);
-              window.__gamerTranslatorDeliver({payload_json})
+              window.__gptTranslatorResults = window.__gptTranslatorResults || Object.create(null);
+              window.__gptTranslatorProgress = window.__gptTranslatorProgress || Object.create(null);
+              window.__gptTranslatorDeliver({payload_json})
                 .then((result) => {{
-                  if (result?.cancelled !== true && !window.__gamerTranslatorIsDeliveryCancelled?.("{call_id}")) {{
-                    window.__gamerTranslatorResults["{call_id}"] = JSON.stringify(result);
+                  if (result?.cancelled !== true && !window.__gptTranslatorIsDeliveryCancelled?.("{call_id}")) {{
+                    window.__gptTranslatorResults["{call_id}"] = JSON.stringify(result);
                   }}
                 }})
                 .catch((error) => {{
-                  if (!window.__gamerTranslatorIsDeliveryCancelled?.("{call_id}")) {{
-                    window.__gamerTranslatorResults["{call_id}"] = JSON.stringify({{
+                  if (!window.__gptTranslatorIsDeliveryCancelled?.("{call_id}")) {{
+                    window.__gptTranslatorResults["{call_id}"] = JSON.stringify({{
                       ok: false,
                       error: String(error)
                     }});
@@ -3670,15 +3682,39 @@ class MainWindow(QMainWindow):
         """
         preserve_diagnostics = False
         delivery_result_received = False
+        page_ready_timeout_ms = int(payload.get("pageReadyTimeoutMs", self.settings.page_ready_timeout_ms))
         timeout_ms = (
-            int(payload.get("pageReadyTimeoutMs", self.settings.page_ready_timeout_ms))
+            page_ready_timeout_ms
             + int(payload.get("responseTimeoutMs", DEFAULT_RESPONSE_TIMEOUT_MS))
             + AUTOMATION_SELF_HEAL_TIMEOUT_BUFFER_MS
         )
+        if payload.get("imageDataUrl") and payload.get("autoSubmit") is True:
+            # A JS három teljes képküldést kísérelhet meg ugyanabból a képből.
+            # A natív határidő a leglassabb előkészítést is végigengedi, majd
+            # a visszaigazolt kérés teljes válaszvárását külön biztosítja.
+            page_ready_budget_ms = min(120000, max(20, page_ready_timeout_ms))
+            upload_budget_ms = min(60000, page_ready_budget_ms)
+            attempt_budget_ms = (
+                3 * upload_budget_ms  # Két csatolási út és a beküldhetőség.
+                + page_ready_budget_ms  # A prompt után cserélődő composer.
+                + min(page_ready_budget_ms, 1800)
+                + 15000  # Beküldés előtt az élő composer kivárása.
+                + 5 * 2200  # A meglévő, őrzött beküldési próbálkozások.
+                + min(page_ready_budget_ms, 8000)
+            )
+            timeout_ms += 3 * attempt_budget_ms + 2 * min(page_ready_budget_ms, 2500)
         started_at = time.monotonic()
         self.active_delivery_call_id = call_id
         try:
-            self._run_javascript(launch_script, timeout_ms=5000)
+            try:
+                self._run_javascript(launch_script, timeout_ms=5000)
+            except BrowserJavaScriptTimeout:
+                # A natív visszahívás késése nem bizonyítja, hogy a renderer
+                # kihagyta az indítást: a kép már a beszélgetésben is lehet.
+                # Ugyanannak a hívásnak az eredményét kérdezzük tovább, új
+                # kézbesítés vagy a futó oldaloldali művelet törlése nélkül.
+                log_event("delivery.launch_pending", level="WARNING", request_id=request_id,
+                          reason="javascript_timeout")
 
             last_progress_sequence = 0
             consecutive_poll_timeouts = 0
@@ -3694,11 +3730,11 @@ class MainWindow(QMainWindow):
                     state_json = self._run_javascript(
                         f"""
                         (() => {{
-                          const resultBucket = window.__gamerTranslatorResults || Object.create(null);
-                          const progressBucket = window.__gamerTranslatorProgress || Object.create(null);
+                          const resultBucket = window.__gptTranslatorResults || Object.create(null);
+                          const progressBucket = window.__gptTranslatorProgress || Object.create(null);
                           const resultValue = resultBucket["{call_id}"];
                           const progressValue = progressBucket["{progress_call_id}"] ?? null;
-                          const diagnosticBucket = window.__gamerTranslatorDiagnostics || Object.create(null);
+                          const diagnosticBucket = window.__gptTranslatorDiagnostics || Object.create(null);
                           const diagnostics = diagnosticBucket["{diagnostic_call_id}"] || [];
 
                           return JSON.stringify({{
@@ -3769,15 +3805,15 @@ class MainWindow(QMainWindow):
                 self._run_javascript(
                     f"""
                         (() => {{
-                          if (!{str(delivery_result_received).lower()} && typeof window.__gamerTranslatorCancelDelivery === "function") {{
-                            window.__gamerTranslatorCancelDelivery("{call_id}");
+                          if (!{str(delivery_result_received).lower()} && typeof window.__gptTranslatorCancelDelivery === "function") {{
+                            window.__gptTranslatorCancelDelivery("{call_id}");
                           }}
-                          const resultBucket = window.__gamerTranslatorResults || Object.create(null);
-                          const progressBucket = window.__gamerTranslatorProgress || Object.create(null);
+                          const resultBucket = window.__gptTranslatorResults || Object.create(null);
+                          const progressBucket = window.__gptTranslatorProgress || Object.create(null);
                           delete resultBucket["{call_id}"];
                           delete progressBucket["{progress_call_id}"];
                           if (!{str(preserve_diagnostics).lower()}) {{
-                            const diagnosticBucket = window.__gamerTranslatorDiagnostics || Object.create(null);
+                            const diagnosticBucket = window.__gptTranslatorDiagnostics || Object.create(null);
                             delete diagnosticBucket["{diagnostic_call_id}"];
                           }}
                           return true;
@@ -3842,8 +3878,9 @@ class MainWindow(QMainWindow):
             raise RuntimeError("A ChatGPT oldal nem töltődött be időben.")
 
     def _run_javascript(self, script: str, *, timeout_ms: int) -> Any:
-        if getattr(self, "operations_cancelled", False):
+        if getattr(self, "operations_cancelled", False) or getattr(self, "exit_requested", False):
             raise BrowserOperationCancelled()
+        _ensure_gui_event_thread(self)
         if not self._is_chatgpt_url(self.browser.url().toString()):
             raise RuntimeError("Az automatizálás csak a ChatGPT HTTPS oldalán használható.")
 
@@ -3858,10 +3895,11 @@ class MainWindow(QMainWindow):
                 {script}
             }} else {{ null; }}
         """
-        result_box: dict[str, Any] = {"done": False}
+        result_box: dict[str, Any] = {"done": False, "timed_out": False}
         loop = QEventLoop()
         timer = QTimer()
         timer.setSingleShot(True)
+        timer.setTimerType(Qt.TimerType.PreciseTimer)
         heartbeat_timer = QTimer()
         heartbeat_timer.setInterval(INTERACTION_HEARTBEAT_INTERVAL_MS)
 
@@ -3881,13 +3919,17 @@ class MainWindow(QMainWindow):
                 loop.quit()
 
         def handle_timeout() -> None:
+            result_box["timed_out"] = True
+            finish_wait()
+
+        def finish_wait() -> None:
             if loop.isRunning():
                 loop.quit()
 
         timer.timeout.connect(handle_timeout)
         cancel_signal = getattr(self, "browser_operations_cancelled", None)
         if cancel_signal is not None:
-            cancel_signal.connect(handle_timeout)
+            cancel_signal.connect(finish_wait)
         heartbeat_timer.timeout.connect(touch_interaction_heartbeat)
         timer.start(timeout_ms)
         heartbeat_timer.start()
@@ -3902,11 +3944,18 @@ class MainWindow(QMainWindow):
             timer.stop()
             heartbeat_timer.stop()
             if cancel_signal is not None:
-                cancel_signal.disconnect(handle_timeout)
-        if getattr(self, "operations_cancelled", False):
+                cancel_signal.disconnect(finish_wait)
+        if getattr(self, "operations_cancelled", False) or getattr(self, "exit_requested", False):
             raise BrowserOperationCancelled()
 
         if not result_box["done"]:
+            # Az app.quit() és egy megszakadt Qt eseményhurok a saját
+            # időzítő előtt is kiléptethet. Ebből nem szabad újabb és újabb
+            # renderer-időtúllépést készíteni és a pollt korlátlanul pörgetni.
+            if not result_box["timed_out"]:
+                log_event("browser.event_loop_failed", level="ERROR",
+                          request_id=getattr(self, "active_translation_request_id", None), reason="loop_interrupted")
+                raise BrowserEventLoopError("A böngésző eseménykezelése várakozás közben megszakadt.")
             log_event("browser.javascript_timeout", level="ERROR",
                       request_id=getattr(self, "active_translation_request_id", None), timeout_ms=timeout_ms)
             raise BrowserJavaScriptTimeout("A JavaScript visszahívása nem érkezett meg időben.")
@@ -3920,9 +3969,29 @@ class MainWindow(QMainWindow):
         if delay_ms <= 0:
             return
 
+        _ensure_gui_event_thread(self)
         loop = QEventLoop()
-        QTimer.singleShot(delay_ms, loop.quit)
-        loop.exec()
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.setTimerType(Qt.TimerType.PreciseTimer)
+        completed = False
+
+        def finish_wait() -> None:
+            nonlocal completed
+            completed = True
+            loop.quit()
+
+        timer.timeout.connect(finish_wait)
+        timer.start(delay_ms)
+        try:
+            loop.exec()
+        finally:
+            # A statikus singleShot a korai kilépés után is függőben maradna.
+            timer.stop()
+        if not completed and not (getattr(self, "operations_cancelled", False) or getattr(self, "exit_requested", False)):
+            log_event("browser.event_loop_failed", level="ERROR",
+                      request_id=getattr(self, "active_translation_request_id", None), reason="loop_interrupted")
+            raise BrowserEventLoopError("A program eseménykezelése várakozás közben megszakadt.")
 
     def _read_clipboard_image_payload(self) -> dict[str, Any] | None:
         started_at = time.monotonic()

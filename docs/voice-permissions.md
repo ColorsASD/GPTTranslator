@@ -1,13 +1,5 @@
 # Hangbeszélgetés és mikrofonengedély
 
-Dátum: 2026. október 15.
-
-Alkalmazásverzió: `5.18`.
-
-## A javítás oka
-
-A beágyazott ChatGPT oldalon a `Start voice` gombra kattintás után a weboldal mikrofonhozzáférést kérhet. A Gamer Translator korábban nem kezelte ezt a Qt WebEngine-jelzést, ezért nem jelent meg engedélykérő ablak. A javítás az alkalmazás saját böngészőjéhez ad natív mikrofonengedély-kezelést.
-
 A hangbeszélgetéshez a mikrofon engedélyezése szükséges. A fejhallgató vagy hangszóró hangkimenetéhez nincs külön `QWebEnginePermission`-engedély; a lejátszás a Windows hangkimeneti beállításait követi. A program nem módosítja a Windows eszközválasztását vagy a rendszer mikrofonvédelmi beállításait.
 
 ## Működés
@@ -52,27 +44,7 @@ A teszt szintetikus hangfolyamot használ, nem rögzít valódi mikrofonhangot �
 .\.venv313\Scripts\python.exe -m unittest discover -s tests -p test_browser_lifecycle.py -v
 ```
 
-## A helyi javítás ellenőrzése
 
-Ellenőrzés dátuma: 2026. október 14.
+## Korábbi ellenőrzések
 
-| Ellenőrzés | Eredmény |
-| --- | --- |
-| Python regressziók | 417/417 sikeres, 99,178 másodperc |
-| Ebből mikrofonengedély-kezelés | 20/20 sikeres |
-| Ebből valódi Chromium médiakérés | 4/4 sikeres, szintetikus hangforrással és hálózat nélkül |
-| Ebből böngésző-életciklus | 19/19 sikeres |
-| JavaScript regressziók | 55/55 sikeres |
-| Csomagolt források és futtatókörnyezet | 42/42 egyezés |
-| Offline EXE-önteszt | 12/12 sikeres, 9 ciklus, 14,271 másodperc, kilépési kód 0 |
-| Normál EXE-indulás | Ablak és automatizálás sikeresen elindult |
-| Meglévő NVIDIA-profil | `already_configured`, `verified: true`, `changed: false` |
-| Felhasználói hangbeszélgetés-próba | A magyar mikrofonablak megjelent, és a hangbeszélgetés elindult |
-
-A csomagolt RapidOCR és Windows OCR motor a helyi modellekkel egyaránt a várt `Hello gamer` szöveget ismerte fel. Az offline médiapróba szintetikus hangot és blokkolt hálózatot használt; ez az automatizált ellenőrzés nem vett fel valódi mikrofonhangot, és nem indított beszélgetést az élő szolgáltatásban.
-
-A felhasználó a normál, bejelentkezett alkalmazásban külön kipróbálta a `Start voice` gombot, és visszajelezte: „Megjelenik, és a hangbeszélgetés is elindul”. A normál alkalmazás tartalommentes naplója egy mikrofonengedély-kérést és egy `accepted: true` döntést rögzített. Ez a magyar engedélykérő és a hangbeszélgetés indulásának felhasználó által megerősített kézi ellenőrzése; műszeres hangminőség-, egérkésés- vagy játék-FPS-mérés nem történt.
-
-Az akkor ellenőrzött EXE 381 660 901 bájt volt. SHA-256: `7854af819a273b6978609f69a942a97246d8d0a84171be9193061f0f1e4c6e3b`. Az ellenőrzéskor azonos fájl volt a `dist/staging/voice-permission/Gamer Translator.exe` buildútvonalon és a futó program helyén, `dist/staging/rounded-browser/Gamer Translator.exe` néven. Az utóbbi útvonalra azóta az első megnyitás szegélyméretét javító helyi EXE kerül; annak friss eredményei a [felületi leírásban](design.md) szerepelnek. A meglévő, bevált NVIDIA-profil a hangengedély ellenőrzésekor változatlan maradt.
-
-A tartalommentes eredmények az [ellenőrzési állományban](evidence/voice-permission-checks.json) szerepelnek.
+A verzióhoz kötött helyi és felhasználói ellenőrzések a [történeti hangengedély-leírásban](history/pre-gpttranslator/docs/voice-permissions.md) szerepelnek. Az ottani eredmények az átnevezés előtti EXE-hez tartoznak.

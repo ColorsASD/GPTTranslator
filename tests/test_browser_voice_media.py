@@ -89,8 +89,8 @@ def probe_browser_voice_media():
     from PySide6.QtWebEngineCore import QWebEngineScript, QWebEngineUrlRequestInterceptor
     from PySide6.QtWidgets import QApplication, QPushButton
 
-    from gamer_translator.main_window import MainWindow
-    from gamer_translator.settings_store import SettingsStore
+    from gpttranslator.main_window import MainWindow
+    from gpttranslator.settings_store import SettingsStore
 
     flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "").split()
     assert "--use-fake-device-for-media-stream" in flags, "A valódi mikrofon nem használható."

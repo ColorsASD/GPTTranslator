@@ -14,9 +14,9 @@ from unittest.mock import Mock, patch
 from PIL import Image
 
 import main
-from gamer_translator.defaults import DEFAULT_BIDIRECTIONAL_PROMPT, PREVIOUS_BIDIRECTIONAL_PROMPT
-from gamer_translator.ocr_service import OCRAsset, OCRCandidate, OCRService
-from gamer_translator.settings_store import AppSettings, LastRunStatus, SettingsStore
+from gpttranslator.defaults import DEFAULT_BIDIRECTIONAL_PROMPT, PREVIOUS_BIDIRECTIONAL_PROMPT
+from gpttranslator.ocr_service import OCRAsset, OCRCandidate, OCRService
+from gpttranslator.settings_store import AppSettings, LastRunStatus, SettingsStore
 
 
 class SettingsStoreTests(unittest.TestCase):
@@ -65,7 +65,7 @@ class SettingsStoreTests(unittest.TestCase):
         store.save_last_translated_text("Korábbi fordítás")
         original_bytes = store.config_path.read_bytes()
 
-        with patch("gamer_translator.settings_store.os.replace", side_effect=OSError("szimulált lemezhiba")):
+        with patch("gpttranslator.settings_store.os.replace", side_effect=OSError("szimulált lemezhiba")):
             with self.assertRaises(OSError):
                 store.save_last_translated_text("Új fordítás")
 
@@ -103,7 +103,7 @@ class OCRServiceTests(unittest.TestCase):
         payload = b"ellenorzott modell"
         self.configure_asset(payload)
         (self.root_dir / "model.onnx").write_bytes(payload)
-        with patch("gamer_translator.ocr_service.DownloadFile.run") as download:
+        with patch("gpttranslator.ocr_service.DownloadFile.run") as download:
             self.service._ensure_assets()
             download.assert_not_called()
 
@@ -112,7 +112,7 @@ class OCRServiceTests(unittest.TestCase):
         self.configure_asset(payload)
         target = self.root_dir / "model.onnx"
         target.write_bytes(b"regi modell")
-        with patch("gamer_translator.ocr_service.DownloadFile.run", side_effect=lambda params: Path(params.save_path).write_bytes(payload)):
+        with patch("gpttranslator.ocr_service.DownloadFile.run", side_effect=lambda params: Path(params.save_path).write_bytes(payload)):
             self.service._ensure_assets()
         self.assertEqual(target.read_bytes(), payload)
         self.assertEqual(list(self.root_dir.glob(".download-*")), [])
@@ -121,7 +121,7 @@ class OCRServiceTests(unittest.TestCase):
         self.configure_asset()
         target = self.root_dir / "model.onnx"
         target.write_bytes(b"regi modell")
-        with patch("gamer_translator.ocr_service.DownloadFile.run", side_effect=lambda params: Path(params.save_path).write_bytes(b"serult modell")):
+        with patch("gpttranslator.ocr_service.DownloadFile.run", side_effect=lambda params: Path(params.save_path).write_bytes(b"serult modell")):
             with self.assertRaisesRegex(RuntimeError, "ellenőrzőösszege eltér"):
                 self.service._ensure_assets()
         self.assertEqual(target.read_bytes(), b"regi modell")
@@ -131,7 +131,7 @@ class OCRServiceTests(unittest.TestCase):
         for overrides in ({"sha256": None}, {"sha256": "invalid"}, {"url": "http://example.invalid/model"}, {"filename": "../model.onnx"}):
             with self.subTest(overrides=overrides):
                 self.configure_asset(**overrides)
-                with patch("gamer_translator.ocr_service.DownloadFile.run") as download:
+                with patch("gpttranslator.ocr_service.DownloadFile.run") as download:
                     with self.assertRaises(RuntimeError):
                         self.service._ensure_assets()
                     download.assert_not_called()
@@ -141,13 +141,13 @@ class OCRServiceTests(unittest.TestCase):
         context = Mock()
         context.__enter__ = Mock(return_value=large_image)
         context.__exit__ = Mock(return_value=False)
-        with patch("gamer_translator.ocr_service.Image.open", return_value=context), patch("gamer_translator.ocr_service.ImageOps.exif_transpose") as transpose:
+        with patch("gpttranslator.ocr_service.Image.open", return_value=context), patch("gpttranslator.ocr_service.ImageOps.exif_transpose") as transpose:
             with self.assertRaisesRegex(ValueError, "40 millió"):
                 self.service._load_image(b"fake header")
             transpose.assert_not_called()
 
     def test_oversized_payload_is_rejected_before_opening(self) -> None:
-        with patch("gamer_translator.ocr_service.MAX_SOURCE_IMAGE_BYTES", 8), patch("gamer_translator.ocr_service.Image.open") as open_image:
+        with patch("gpttranslator.ocr_service.MAX_SOURCE_IMAGE_BYTES", 8), patch("gpttranslator.ocr_service.Image.open") as open_image:
             with self.assertRaisesRegex(ValueError, "64 MiB"):
                 self.service._load_image(b"123456789")
             open_image.assert_not_called()
@@ -187,12 +187,12 @@ from pathlib import Path
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtNetwork import QLocalServer
 import main
-assert "gamer_translator.main_window" not in sys.modules
+assert "gpttranslator.main_window" not in sys.modules
 app = QCoreApplication([])
 with tempfile.TemporaryDirectory() as directory:
-    first = main.SingleInstanceController("GamerTranslatorCoreTest", Path(directory) / "a")
-    second = main.SingleInstanceController("GamerTranslatorCoreTest", Path(directory) / "a")
-    other_profile = main.SingleInstanceController("GamerTranslatorCoreTest", Path(directory) / "b")
+    first = main.SingleInstanceController("GPTTranslatorCoreTest", Path(directory) / "a")
+    second = main.SingleInstanceController("GPTTranslatorCoreTest", Path(directory) / "a")
+    other_profile = main.SingleInstanceController("GPTTranslatorCoreTest", Path(directory) / "b")
     assert first.ensure_primary_instance()
     assert not second.ensure_primary_instance()
     assert other_profile.ensure_primary_instance()

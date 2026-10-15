@@ -6,7 +6,7 @@ const test = require('node:test');
 const vm = require('node:vm');
 const { File } = require('node:buffer');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'gamer_translator', 'automation.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'gpttranslator', 'automation.js'), 'utf8');
 const helperNames = [
   'dataUrlToFile', 'waitForPromptApplied', 'isTransientAssistantText',
   'readStructuredDomText', 'writePrompt', 'findComposer', 'findSendButton',
@@ -21,6 +21,7 @@ const helperNames = [
   'captureResponseBaselineBeforeSubmit',
   'reportAssistantSnapshotDiagnostic',
   'getUiMessageHeadingRole', 'getMessageAuthorEvidence', 'getMessageStableId',
+  'submitImageMessage', 'hasUserMessageImage',
 ];
 // Csak a tesztpéldány kap hozzáférést a belső függvényekhez; az éles forrás nem exportál teszt API-t.
 const hook = helperNames.map((name) => `
@@ -193,25 +194,25 @@ function createHarness({ origin = 'https://chatgpt.com', subframe = false, overr
 
 test('Az automatizálás csak az engedélyezett HTTPS fődokumentumokban indul', () => {
   for (const origin of ['https://chatgpt.com', 'https://chat.openai.com']) {
-    assert.equal(typeof createHarness({ origin }).window.__gamerTranslatorDeliver, 'function');
+    assert.equal(typeof createHarness({ origin }).window.__gptTranslatorDeliver, 'function');
   }
   for (const origin of ['http://chatgpt.com', 'https://chatgpt.com:444', 'https://chatgpt.com.evil.example', 'https://evil.chatgpt.com', 'null']) {
-    assert.equal(createHarness({ origin }).window.__gamerTranslatorDeliver, undefined, origin);
+    assert.equal(createHarness({ origin }).window.__gptTranslatorDeliver, undefined, origin);
   }
-  assert.equal(createHarness({ subframe: true }).window.__gamerTranslatorDeliver, undefined);
+  assert.equal(createHarness({ subframe: true }).window.__gptTranslatorDeliver, undefined);
 });
 
 test('Navigáció után a megmaradt kézbesítő sem dolgozik idegen eredeten', async () => {
   const harness = createHarness();
   harness.window.location.origin = 'https://example.com';
-  assert.equal((await harness.window.__gamerTranslatorDeliver({ prompt: 'titok' })).ok, false);
+  assert.equal((await harness.window.__gptTranslatorDeliver({ prompt: 'titok' })).ok, false);
   assert.equal(harness.composer.value, '');
 });
 
 test('Hibás payload visszautasítása nem indít DOM-műveletet', async () => {
   const harness = createHarness();
   for (const payload of [null, undefined, [], 'prompt', { prompt: {} }, { imageDataUrl: 42 }]) {
-    assert.equal((await harness.window.__gamerTranslatorDeliver(payload)).ok, false);
+    assert.equal((await harness.window.__gptTranslatorDeliver(payload)).ok, false);
   }
   assert.equal(harness.composer.value, '');
 });
@@ -233,7 +234,7 @@ test('Részlegesen visszaállított prompt esetén a nyilvános küldés sem kü
   let submitCount = 0;
   const harness = createHarness({ overrides: { submitTextMessage: async () => { submitCount += 1; } } });
   harness.composer.addEventListener('input', () => { harness.composer.value = 'A teljes'; });
-  const pending = harness.window.__gamerTranslatorDeliver({ prompt: 'A teljes fordítandó szöveg', autoSubmit: true, pageReadyTimeoutMs: 40 });
+  const pending = harness.window.__gptTranslatorDeliver({ prompt: 'A teljes fordítandó szöveg', autoSubmit: true, pageReadyTimeoutMs: 40 });
   await harness.advance(80);
   const result = await pending;
   assert.equal(result.ok, false);
@@ -244,7 +245,7 @@ test('Részlegesen visszaállított prompt esetén a nyilvános küldés sem kü
 test('Küldés nélküli beillesztés nem vár idegen válaszra és nem értelmez HTML-t', async () => {
   const harness = createHarness({ overrides: { waitForAssistantResponse: async () => { throw new Error('Nem futhat.'); } } });
   const prompt = '<img src=x onerror=alert(1)>\nMásodik sor';
-  const result = await harness.window.__gamerTranslatorDeliver({ prompt, autoSubmit: false, copyResponseToClipboard: true });
+  const result = await harness.window.__gptTranslatorDeliver({ prompt, autoSubmit: false, copyResponseToClipboard: true });
   assert.equal(result.ok, true);
   assert.equal(harness.composer.value, prompt);
   const editable = new FakeElement('div');
@@ -258,30 +259,30 @@ test('Párhuzamos kézbesítés nem írhatja felül az aktív promptot', async (
   let release;
   const hold = new Promise((resolve) => { release = resolve; });
   const harness = createHarness({ overrides: { waitForPromptApplied: async (composer) => { await hold; return composer; } } });
-  const first = harness.window.__gamerTranslatorDeliver({ prompt: 'Első', autoSubmit: false });
+  const first = harness.window.__gptTranslatorDeliver({ prompt: 'Első', autoSubmit: false });
   await flush();
-  const second = await harness.window.__gamerTranslatorDeliver({ prompt: 'Második', autoSubmit: false, diagnosticCallId: 'busy-rejection' });
+  const second = await harness.window.__gptTranslatorDeliver({ prompt: 'Második', autoSubmit: false, diagnosticCallId: 'busy-rejection' });
   assert.equal(second.ok, false);
   assert.match(second.error, /folyamatban/);
-  assert.equal(harness.window.__gamerTranslatorDiagnostics['busy-rejection'][0].event, 'delivery_rejected');
-  assert.equal(harness.window.__gamerTranslatorDiagnostics['busy-rejection'][0].fields.reason, 'delivery_busy');
+  assert.equal(harness.window.__gptTranslatorDiagnostics['busy-rejection'][0].event, 'delivery_rejected');
+  assert.equal(harness.window.__gptTranslatorDiagnostics['busy-rejection'][0].fields.reason, 'delivery_busy');
   assert.equal(harness.composer.value, 'Első');
   release();
   assert.equal((await first).ok, true);
-  assert.equal((await harness.window.__gamerTranslatorDeliver({ prompt: 'Harmadik', autoSubmit: false })).ok, true);
+  assert.equal((await harness.window.__gptTranslatorDeliver({ prompt: 'Harmadik', autoSubmit: false })).ok, true);
 });
 
 test('Előzetes megszakítás után a késve végrehajtott küldés nem írhatja át a composert', async () => {
   const harness = createHarness();
-  assert.equal(harness.window.__gamerTranslatorCancelDelivery('late-call').ok, true);
-  assert.equal(harness.window.__gamerTranslatorIsDeliveryCancelled('late-call'), true);
-  const result = await harness.window.__gamerTranslatorDeliver({ prompt: 'Elavult szöveg', autoSubmit: true, deliveryCallId: 'late-call' });
+  assert.equal(harness.window.__gptTranslatorCancelDelivery('late-call').ok, true);
+  assert.equal(harness.window.__gptTranslatorIsDeliveryCancelled('late-call'), true);
+  const result = await harness.window.__gptTranslatorDeliver({ prompt: 'Elavult szöveg', autoSubmit: true, deliveryCallId: 'late-call' });
   assert.equal(result.ok, false); assert.equal(result.cancelled, true); assert.equal(harness.composer.value, '');
   for (const invalid of ['', 'invalid id', {}, 42]) {
-    assert.equal(harness.window.__gamerTranslatorCancelDelivery(invalid).ok, false);
-    assert.equal((await harness.window.__gamerTranslatorDeliver({ prompt: 'Tiltott', deliveryCallId: invalid })).ok, false);
+    assert.equal(harness.window.__gptTranslatorCancelDelivery(invalid).ok, false);
+    assert.equal((await harness.window.__gptTranslatorDeliver({ prompt: 'Tiltott', deliveryCallId: invalid })).ok, false);
   }
-  assert.equal((await harness.window.__gamerTranslatorDeliver({ prompt: 'Új szöveg', autoSubmit: false, deliveryCallId: 'new-call' })).ok, true);
+  assert.equal((await harness.window.__gptTranslatorDeliver({ prompt: 'Új szöveg', autoSubmit: false, deliveryCallId: 'new-call' })).ok, true);
   assert.equal(harness.composer.value, 'Új szöveg');
 });
 
@@ -293,47 +294,47 @@ test('Megszakított régi finally nem oldhatja fel a már elindult új küldés 
     waitForPromptApplied: async (composer, prompt) => { await (prompt === 'Régi' ? oldGate : newGate); return composer; },
     submitTextMessage: async () => { submitCount += 1; },
   } });
-  const oldDelivery = harness.window.__gamerTranslatorDeliver({ prompt: 'Régi', autoSubmit: true, deliveryCallId: 'old-call' });
+  const oldDelivery = harness.window.__gptTranslatorDeliver({ prompt: 'Régi', autoSubmit: true, deliveryCallId: 'old-call' });
   await flush();
-  assert.equal(harness.window.__gamerTranslatorComposerAutoRecovery.suspendedCount, 1);
-  assert.equal(harness.window.__gamerTranslatorCancelDelivery('different-call').active, false);
-  assert.equal(harness.window.__gamerTranslatorComposerAutoRecovery.suspendedCount, 1);
-  assert.equal(harness.window.__gamerTranslatorCancelDelivery('old-call').active, true);
-  assert.equal(harness.window.__gamerTranslatorComposerAutoRecovery.suspendedCount, 0);
-  const newDelivery = harness.window.__gamerTranslatorDeliver({ prompt: 'Új', autoSubmit: true, deliveryCallId: 'new-call' });
+  assert.equal(harness.window.__gptTranslatorComposerAutoRecovery.suspendedCount, 1);
+  assert.equal(harness.window.__gptTranslatorCancelDelivery('different-call').active, false);
+  assert.equal(harness.window.__gptTranslatorComposerAutoRecovery.suspendedCount, 1);
+  assert.equal(harness.window.__gptTranslatorCancelDelivery('old-call').active, true);
+  assert.equal(harness.window.__gptTranslatorComposerAutoRecovery.suspendedCount, 0);
+  const newDelivery = harness.window.__gptTranslatorDeliver({ prompt: 'Új', autoSubmit: true, deliveryCallId: 'new-call' });
   await flush();
-  assert.equal(harness.window.__gamerTranslatorComposerAutoRecovery.suspendedCount, 1);
+  assert.equal(harness.window.__gptTranslatorComposerAutoRecovery.suspendedCount, 1);
   releaseOld(); const oldResult = await oldDelivery;
   assert.equal(oldResult.cancelled, true); assert.equal(submitCount, 0);
-  assert.equal(harness.window.__gamerTranslatorComposerAutoRecovery.suspendedCount, 1);
-  assert.equal((await harness.window.__gamerTranslatorDeliver({ prompt: 'Harmadik', deliveryCallId: 'third-call' })).ok, false);
+  assert.equal(harness.window.__gptTranslatorComposerAutoRecovery.suspendedCount, 1);
+  assert.equal((await harness.window.__gptTranslatorDeliver({ prompt: 'Harmadik', deliveryCallId: 'third-call' })).ok, false);
   releaseNew(); assert.equal((await newDelivery).ok, true); assert.equal(submitCount, 1);
-  assert.equal(harness.window.__gamerTranslatorComposerAutoRecovery.suspendedCount, 0);
+  assert.equal(harness.window.__gptTranslatorComposerAutoRecovery.suspendedCount, 0);
 });
 
 test('Megszakítás a valódi válaszvárakozást azonnal lezárja késői figyelés nélkül', async () => {
   let submitCount = 0;
   const harness = createHarness({ overrides: { submitTextMessage: async () => { submitCount += 1; } } });
-  const pending = harness.window.__gamerTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, waitForResponse: true,
+  const pending = harness.window.__gptTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, waitForResponse: true,
     responseTimeoutMs: 600000, deliveryCallId: 'response-call', progressCallId: 'response-progress', diagnosticCallId: 'response-diagnostic' });
   await flush(); assert.equal(submitCount, 1);
-  assert.equal(harness.window.__gamerTranslatorCancelDelivery('response-call').active, true);
+  assert.equal(harness.window.__gptTranslatorCancelDelivery('response-call').active, true);
   const result = await pending;
   assert.equal(result.cancelled, true); assert.equal(result.ok, false);
-  assert.equal(Object.keys(harness.window.__gamerTranslatorAssistantResponseFollowUps || {}).length, 0);
-  assert.equal(harness.window.__gamerTranslatorComposerAutoRecovery.suspendedCount, 0);
-  assert.equal(harness.window.__gamerTranslatorDiagnostics['response-diagnostic'].some((entry) => entry.event === 'delivery_cancelled'), true);
+  assert.equal(Object.keys(harness.window.__gptTranslatorAssistantResponseFollowUps || {}).length, 0);
+  assert.equal(harness.window.__gptTranslatorComposerAutoRecovery.suspendedCount, 0);
+  assert.equal(harness.window.__gptTranslatorDiagnostics['response-diagnostic'].some((entry) => entry.event === 'delivery_cancelled'), true);
 });
 
 test('Csatoló folytatás megszakítás után nem küldhet képet', async () => {
   let releaseAttachment;
   const gate = new Promise((resolve) => { releaseAttachment = resolve; });
   const harness = createHarness({ overrides: { attachImage: async (composer) => { await gate; return composer; } } });
-  const pending = harness.window.__gamerTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true, deliveryCallId: 'attachment-call' });
-  await flush(); assert.equal(harness.window.__gamerTranslatorCancelDelivery('attachment-call').active, true);
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true, deliveryCallId: 'attachment-call' });
+  await flush(); assert.equal(harness.window.__gptTranslatorCancelDelivery('attachment-call').active, true);
   releaseAttachment(); const result = await pending;
-  assert.equal(result.cancelled, true); assert.equal(harness.window.__gamerTranslatorComposerAutoRecovery.suspendedCount, 0);
-  assert.equal((await harness.window.__gamerTranslatorDeliver({ prompt: 'Következő', autoSubmit: false, deliveryCallId: 'next-call' })).ok, true);
+  assert.equal(result.cancelled, true); assert.equal(harness.window.__gptTranslatorComposerAutoRecovery.suspendedCount, 0);
+  assert.equal((await harness.window.__gptTranslatorDeliver({ prompt: 'Következő', autoSubmit: false, deliveryCallId: 'next-call' })).ok, true);
 });
 
 test('Kép adatURL MIME-, base64- és méretellenőrzése', () => {
@@ -379,7 +380,7 @@ test('A kézi küldés helyreállítása DOM-változás nélkül is egyszer elin
   await flush();
   harness.composer.value = 'Kézi fordítás';
   let retries = 0;
-  harness.window.__gamerTranslatorDeliver = async () => { retries += 1; return { ok: false }; };
+  harness.window.__gptTranslatorDeliver = async () => { retries += 1; return { ok: false }; };
   harness.document.dispatchEvent(new FakeEvent('click', { target: harness.sendButton }));
   await harness.advance(2200);
   assert.equal(retries, 0);
@@ -396,9 +397,9 @@ test('Az automatizálás saját eseménye nem élesíti a kézi helyreállítás
     submitCount += 1;
     harness.document.dispatchEvent(new FakeEvent('click', { target: harness.sendButton }));
   } } });
-  const result = await harness.window.__gamerTranslatorDeliver({ prompt: 'Automatikus', autoSubmit: true });
+  const result = await harness.window.__gptTranslatorDeliver({ prompt: 'Automatikus', autoSubmit: true });
   assert.equal(result.ok, true);
-  assert.equal(harness.window.__gamerTranslatorComposerAutoRecovery.armedPayloadKey, '');
+  assert.equal(harness.window.__gptTranslatorComposerAutoRecovery.armedPayloadKey, '');
   await harness.advance(5000);
   assert.equal(submitCount, 1);
 });
@@ -408,9 +409,9 @@ test('A megfigyelő leállítása törli a függő helyreállítás időzítőj�
   await flush();
   harness.composer.value = 'Ne küldd el később';
   let retries = 0;
-  harness.window.__gamerTranslatorDeliver = async () => { retries += 1; };
+  harness.window.__gptTranslatorDeliver = async () => { retries += 1; };
   harness.document.dispatchEvent(new FakeEvent('click', { target: harness.sendButton }));
-  harness.window.__gamerTranslatorComposerAutoRecovery.destroy();
+  harness.window.__gptTranslatorComposerAutoRecovery.destroy();
   await harness.advance(5000);
   assert.equal(retries, 0);
 });
@@ -516,13 +517,13 @@ test('Aszinkron képbeillesztés csak a teljes timeout után használ egyszeri d
     attachViaFileInput: (_composer, file) => { inputCount += 1; selectedKey = `${file.name}:${file.size}:${file.type}:${file.lastModified}`; return true; },
     attachViaDrop: () => { dropCount += 1; preview = true; return true; },
   } });
-  const pending = harness.window.__gamerTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', pageReadyTimeoutMs: 40, diagnosticCallId: 'image-test' });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', pageReadyTimeoutMs: 40, diagnosticCallId: 'image-test' });
   await harness.advance(20);
   assert.equal(inputCount, 1); assert.equal(dropCount, 0);
   await harness.advance(20);
   const result = await pending;
   assert.equal(result.ok, true); assert.equal(dropCount, 1);
-  const events = harness.window.__gamerTranslatorDiagnostics['image-test'].map((entry) => entry.event);
+  const events = harness.window.__gptTranslatorDiagnostics['image-test'].map((entry) => entry.event);
   assert.equal(events.includes('attachment_timeout'), true);
   assert.equal(events.includes('attachment_ready'), true);
 });
@@ -534,7 +535,7 @@ test('Aktív képfeldolgozás timeoutja nem indít újabb feltöltést', async (
     attachViaFileInput: (_composer, file) => { inputCount += 1; selectedKey = `${file.name}:${file.size}:${file.type}:${file.lastModified}`; return true; },
     attachViaDrop: () => { dropCount += 1; return true; },
   } });
-  const pending = harness.window.__gamerTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', pageReadyTimeoutMs: 40 });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', pageReadyTimeoutMs: 40 });
   await harness.advance(40);
   assert.equal((await pending).ok, false); assert.equal(inputCount, 1); assert.equal(dropCount, 0);
 });
@@ -542,18 +543,18 @@ test('Aktív képfeldolgozás timeoutja nem indít újabb feltöltést', async (
 test('Válasz timeout után a késői eredmény ugyanahhoz a kéréshez érkezhet', async () => {
   const { harness, users, assistants } = conversationHarness();
   const callbacks = new Set();
-  harness.window.__gamerTranslatorDomTracker.subscribe = (callback) => { callbacks.add(callback); return () => callbacks.delete(callback); };
+  harness.window.__gptTranslatorDomTracker.subscribe = (callback) => { callbacks.add(callback); return () => callbacks.delete(callback); };
   harness.window.__testOverrides.submitTextMessage = async () => { users.push(appendMessage(harness, 'user-late', 'Kérés')); };
-  const pending = harness.window.__gamerTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, copyResponseToClipboard: true, responseTimeoutMs: 40, progressCallId: 'late-test', diagnosticCallId: 'late-diagnostics' });
+  const pending = harness.window.__gptTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, copyResponseToClipboard: true, responseTimeoutMs: 40, progressCallId: 'late-test', diagnosticCallId: 'late-diagnostics' });
   await harness.advance(40);
   const result = await pending;
   assert.equal(result.ok, false); assert.equal(result.responsePending, true); assert.equal(result.followUpProgressCallId, 'late-test-followup');
   assistants.push(appendMessage(harness, 'answer-late', 'Késői fordítás'));
   for (const callback of [...callbacks]) callback();
-  const progress = JSON.parse(harness.window.__gamerTranslatorProgress['late-test-followup']);
+  const progress = JSON.parse(harness.window.__gptTranslatorProgress['late-test-followup']);
   assert.equal(progress.kind, 'assistant_response'); assert.equal(progress.text, 'Késői fordítás');
-  assert.equal(harness.window.__gamerTranslatorDiagnostics['late-diagnostics'].some((entry) => entry.event === 'response_received' && entry.fields.late), true);
-  const snapshots = harness.window.__gamerTranslatorDiagnostics['late-diagnostics'].filter((entry) => entry.event === 'response_snapshot');
+  assert.equal(harness.window.__gptTranslatorDiagnostics['late-diagnostics'].some((entry) => entry.event === 'response_received' && entry.fields.late), true);
+  const snapshots = harness.window.__gptTranslatorDiagnostics['late-diagnostics'].filter((entry) => entry.event === 'response_snapshot');
   assert.equal(snapshots.some((entry) => !entry.fields.late && entry.fields.request_user_bound && entry.fields.rejection_reason === 'response_user_mismatch'), true);
   assert.equal(snapshots.some((entry) => entry.fields.late && entry.fields.request_user_bound
     && entry.fields.last_user_matches_request && entry.fields.response_user_matches_request
@@ -561,7 +562,7 @@ test('Válasz timeout után a késői eredmény ugyanahhoz a kéréshez érkezhe
   users.push(appendMessage(harness, 'user-other', 'Másik kérés'));
   assistants.push(appendMessage(harness, 'answer-other', 'Idegen válasz'));
   for (const callback of [...callbacks]) callback();
-  const doneProgress = JSON.parse(harness.window.__gamerTranslatorProgress['late-test-followup']);
+  const doneProgress = JSON.parse(harness.window.__gptTranslatorProgress['late-test-followup']);
   assert.equal(doneProgress.kind, 'assistant_response'); assert.equal(doneProgress.done, true);
   assert.equal(doneProgress.text, 'Késői fordítás');
   assert.equal(callbacks.size, 0);
@@ -570,24 +571,24 @@ test('Válasz timeout után a késői eredmény ugyanahhoz a kéréshez érkezhe
 test('Üres kezdetű késői válaszfigyelés legfeljebb 120 másodpercig marad aktív', async () => {
   const { harness, users } = conversationHarness();
   harness.window.__testOverrides.submitTextMessage = async () => { users.push(appendMessage(harness, 'user-wait', 'Kérés')); };
-  const pending = harness.window.__gamerTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, copyResponseToClipboard: true, responseTimeoutMs: 40, progressCallId: 'bounded-test' });
+  const pending = harness.window.__gptTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, copyResponseToClipboard: true, responseTimeoutMs: 40, progressCallId: 'bounded-test' });
   await harness.advance(40);
   assert.equal((await pending).responsePending, true);
   await harness.advance(119999);
-  assert.equal(Boolean(harness.window.__gamerTranslatorAssistantResponseFollowUps['bounded-test-followup']), true);
+  assert.equal(Boolean(harness.window.__gptTranslatorAssistantResponseFollowUps['bounded-test-followup']), true);
   await harness.advance(1);
-  assert.equal(harness.window.__gamerTranslatorAssistantResponseFollowUps['bounded-test-followup'], undefined);
-  assert.equal(JSON.parse(harness.window.__gamerTranslatorProgress['bounded-test-followup']).kind, 'assistant_response_watch_done');
+  assert.equal(harness.window.__gptTranslatorAssistantResponseFollowUps['bounded-test-followup'], undefined);
+  assert.equal(JSON.parse(harness.window.__gptTranslatorProgress['bounded-test-followup']).kind, 'assistant_response_watch_done');
 });
 
 test('Új kézbesítés leállítja a korábbi késői figyelést', async () => {
   const { harness, users } = conversationHarness();
   harness.window.__testOverrides.submitTextMessage = async () => { users.push(appendMessage(harness, 'user-first', 'Első kérés')); };
-  const pending = harness.window.__gamerTranslatorDeliver({ prompt: 'Első kérés', autoSubmit: true, copyResponseToClipboard: true, responseTimeoutMs: 40, progressCallId: 'first-test' });
+  const pending = harness.window.__gptTranslatorDeliver({ prompt: 'Első kérés', autoSubmit: true, copyResponseToClipboard: true, responseTimeoutMs: 40, progressCallId: 'first-test' });
   await harness.advance(40);
   assert.equal((await pending).responsePending, true);
-  assert.equal((await harness.window.__gamerTranslatorDeliver({ prompt: 'Második kérés', autoSubmit: false })).ok, true);
-  assert.equal(harness.window.__gamerTranslatorAssistantResponseFollowUps['first-test-followup'], undefined);
+  assert.equal((await harness.window.__gptTranslatorDeliver({ prompt: 'Második kérés', autoSubmit: false })).ok, true);
+  assert.equal(harness.window.__gptTranslatorAssistantResponseFollowUps['first-test-followup'], undefined);
 });
 
 test('A diagnosztika korlátos és kizárja a szöveget, képet és URL-t', () => {
@@ -595,14 +596,14 @@ test('A diagnosztika korlátos és kizárja a szöveget, képet és URL-t', () =
   for (let index = 0; index < 150; index += 1) {
     harness.helpers.writeDiagnosticEntry('diagnostic-test', 'response_snapshot', { text_length: index, prompt_text: 'titkos szöveg', imageDataUrl: 'data:image/png;base64,aGVsbG8=', url: 'https://example.com/private', reason: 'https://example.com/private', stage: 'response', pending: false });
   }
-  const entries = harness.window.__gamerTranslatorDiagnostics['diagnostic-test'];
+  const entries = harness.window.__gptTranslatorDiagnostics['diagnostic-test'];
   assert.equal(entries.length, 100); assert.equal(entries[0].fields.text_length, 50);
   assert.equal(entries[0].seq, 51); assert.equal(entries.at(-1).seq, 150);
   assert.deepEqual(Object.keys(entries[0].fields).sort(), ['pending', 'stage', 'text_length']);
   const serialized = JSON.stringify(entries);
   assert.equal(serialized.includes('titkos'), false); assert.equal(serialized.includes('data:image'), false); assert.equal(serialized.includes('https://'), false);
   for (let index = 0; index < 30; index += 1) harness.helpers.writeDiagnosticEntry(`call-${index}`, 'composer_ready');
-  assert.equal(Object.keys(harness.window.__gamerTranslatorDiagnostics).length, 16);
+  assert.equal(Object.keys(harness.window.__gptTranslatorDiagnostics).length, 16);
 });
 
 test('Kéréskötési diagnosztika csak bool értéket és ismert ok/szerep tokent enged át', () => {
@@ -612,21 +613,21 @@ test('Kéréskötési diagnosztika csak bool értéket és ismert ok/szerep toke
     response_user_matches_request: null, assistant_identity_new: {},
     user_role_source: 'raw_user_secret', rejection_reason: 'raw_assistant_secret',
   });
-  assert.equal(Object.keys(harness.window.__gamerTranslatorDiagnostics['binding-types'][0].fields).length, 0);
+  assert.equal(Object.keys(harness.window.__gptTranslatorDiagnostics['binding-types'][0].fields).length, 0);
   harness.helpers.writeDiagnosticEntry('binding-types', 'response_snapshot', {
     request_user_bound: true, last_user_matches_request: false, response_user_matches_request: true,
     assistant_identity_new: false, user_role_source: 'conversation_role', rejection_reason: 'response_user_mismatch',
   });
-  const fields = harness.window.__gamerTranslatorDiagnostics['binding-types'][1].fields;
+  const fields = harness.window.__gptTranslatorDiagnostics['binding-types'][1].fields;
   assert.equal(fields.request_user_bound, true); assert.equal(fields.last_user_matches_request, false);
   assert.equal(fields.response_user_matches_request, true); assert.equal(fields.assistant_identity_new, false);
   assert.equal(fields.user_role_source, 'conversation_role'); assert.equal(fields.rejection_reason, 'response_user_mismatch');
-  assert.equal(JSON.stringify(harness.window.__gamerTranslatorDiagnostics).includes('secret'), false);
+  assert.equal(JSON.stringify(harness.window.__gptTranslatorDiagnostics).includes('secret'), false);
 });
 
 test('Első és késői snapshot minden kötési elutasítás okát tartalommentesen jelzi', async () => {
   const harness = createHarness();
-  await harness.window.__gamerTranslatorDeliver({ prompt: 'Előkészítés', autoSubmit: false, diagnosticCallId: 'binding-reasons' });
+  await harness.window.__gptTranslatorDeliver({ prompt: 'Előkészítés', autoSubmit: false, diagnosticCallId: 'binding-reasons' });
   const previous = {
     lastUserKey: 'message:old_secret_user', lastUserStableId: 'message:old_secret_user',
     userKeys: ['message:old_secret_user'], assistantStableIds: ['message:old_secret_answer'],
@@ -651,13 +652,13 @@ test('Első és késői snapshot minden kötési elutasítás okát tartalomment
     for (const late of [false, true]) {
       const baseline = { ...previous, requestUserKey: bound ? current.lastUserKey : '' };
       harness.helpers.reportAssistantSnapshotDiagnostic(snapshot, baseline, { late });
-      const last = harness.window.__gamerTranslatorDiagnostics['binding-reasons'].at(-1);
+      const last = harness.window.__gptTranslatorDiagnostics['binding-reasons'].at(-1);
       assert.equal(last.event, 'response_snapshot'); assert.equal(last.fields.rejection_reason, reason);
       assert.equal(last.fields.request_user_bound, bound); assert.equal(last.fields.late, late);
       assert.equal(last.fields.user_role_source, 'conversation_role');
     }
   }
-  const serialized = JSON.stringify(harness.window.__gamerTranslatorDiagnostics);
+  const serialized = JSON.stringify(harness.window.__gptTranslatorDiagnostics);
   assert.equal(serialized.includes('secret'), false); assert.equal(serialized.includes('titkos'), false);
 });
 
@@ -676,12 +677,12 @@ test('Képfeltöltés teljes kudarca kitakarítja a saját fájlmezőt a követk
   Object.defineProperty(input, 'value', { get: () => '', set: (value) => { if (value === '') input.files = []; } });
   harness.document.body.querySelectorAll = (selector) => selector === 'input[type="file"]' ? [input] : [];
   const payload = { imageDataUrl: 'data:image/png;base64,aGVsbG8=', pageReadyTimeoutMs: 40, diagnosticCallId: 'cleanup-test' };
-  const failed = harness.window.__gamerTranslatorDeliver(payload);
+  const failed = harness.window.__gptTranslatorDeliver(payload);
   await harness.advance(80);
   assert.equal((await failed).ok, false); assert.equal(input.files.length, 0);
-  assert.equal(harness.window.__gamerTranslatorDiagnostics['cleanup-test'].some((entry) => entry.event === 'attachment_selection_cleared' && entry.fields.ok), true);
+  assert.equal(harness.window.__gptTranslatorDiagnostics['cleanup-test'].some((entry) => entry.event === 'attachment_selection_cleared' && entry.fields.ok), true);
   shouldSucceed = true;
-  assert.equal((await harness.window.__gamerTranslatorDeliver(payload)).ok, true);
+  assert.equal((await harness.window.__gptTranslatorDeliver(payload)).ok, true);
   assert.equal(input.files.length, 1, 'A sikeres csatolmány fájlmezőjét meg kell őrizni.');
 });
 
@@ -700,7 +701,7 @@ test('Sikertelen várakozás valós preview vagy folyamatban levő feltöltés f
     input = harness.document.body.appendChild(new FakeInput('input')); input.type = 'file'; input.files = [];
     Object.defineProperty(input, 'value', { get: () => '', set: (value) => { if (value === '') input.files = []; } });
     harness.document.body.querySelectorAll = (selector) => selector === 'input[type="file"]' ? [input] : [];
-    const pending = harness.window.__gamerTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', pageReadyTimeoutMs: 40 });
+    const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', pageReadyTimeoutMs: 40 });
     await harness.advance(40);
     assert.equal((await pending).ok, false); assert.equal(input.files.length, 1, mode);
   }
@@ -709,19 +710,19 @@ test('Sikertelen várakozás valós preview vagy folyamatban levő feltöltés f
 test('Késleltetett poll esetén a lezáró progress rekord megőrzi a késői végső választ', async () => {
   const { harness, users, assistants } = conversationHarness();
   const callbacks = new Set();
-  harness.window.__gamerTranslatorDomTracker.subscribe = (callback) => { callbacks.add(callback); return () => callbacks.delete(callback); };
+  harness.window.__gptTranslatorDomTracker.subscribe = (callback) => { callbacks.add(callback); return () => callbacks.delete(callback); };
   harness.window.__testOverrides.submitTextMessage = async () => { users.push(appendMessage(harness, 'user-delayed-poll', 'Kérés')); };
-  const pending = harness.window.__gamerTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, copyResponseToClipboard: true, responseTimeoutMs: 40, progressCallId: 'delayed-poll' });
+  const pending = harness.window.__gptTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, copyResponseToClipboard: true, responseTimeoutMs: 40, progressCallId: 'delayed-poll' });
   await harness.advance(40);
   assert.equal((await pending).responsePending, true);
   assistants.push(appendMessage(harness, 'answer-delayed-poll', 'A végső fordítás megmarad.'));
   for (const callback of [...callbacks]) callback();
   // A Python oldali poll ebben a 4 másodpercben egyáltalán nem olvassa a bucketet.
   await harness.advance(4000);
-  const progress = JSON.parse(harness.window.__gamerTranslatorProgress['delayed-poll-followup']);
+  const progress = JSON.parse(harness.window.__gptTranslatorProgress['delayed-poll-followup']);
   assert.equal(progress.done, true); assert.equal(progress.kind, 'assistant_response');
   assert.equal(progress.text, 'A végső fordítás megmarad.');
-  assert.equal(harness.window.__gamerTranslatorAssistantResponseFollowUps['delayed-poll-followup'], undefined);
+  assert.equal(harness.window.__gptTranslatorAssistantResponseFollowUps['delayed-poll-followup'], undefined);
   assert.equal(callbacks.size, 0);
 });
 
@@ -732,7 +733,7 @@ test('Vágólapmásolás nélkül is kérhető befejezett fordítás a begépel�
     submitTextMessage: async () => {},
     waitForAssistantResponse: async () => { watched += 1; return { text: 'Kész fordítás' }; },
   } });
-  const result = await harness.window.__gamerTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, copyResponseToClipboard: false, waitForResponse: true });
+  const result = await harness.window.__gptTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, copyResponseToClipboard: false, waitForResponse: true });
   assert.equal(result.ok, true); assert.equal(result.assistantResponseText, 'Kész fordítás');
   assert.equal(result.assistantResponseComplete, true); assert.equal(watched, 1);
 });
@@ -743,17 +744,17 @@ test('Streaming timeout nem ad kész fordítást, azonos szöveg befejezése ké
   const partial = { count: 1, lastText: 'Még folyamatban levő szöveg', lastNodeId: 'assistant-1', lastStableId: 'message:answer-1', lastPending: true, lastUserKey: 'message:user-1', lastUserStableId: 'message:user-1', userKeys: ['message:user-1'], userNodeIds: ['user-node-1'], assistantNodeIds: ['assistant-1'], assistantStableIds: ['message:answer-1'], responseUserKey: 'message:user-1', userCount: 1 };
   const harness = createHarness({ overrides: { captureAssistantSnapshot: () => current, submitTextMessage: async () => { current = partial; } } });
   const callbacks = new Set();
-  harness.window.__gamerTranslatorDomTracker.subscribe = (callback) => { callbacks.add(callback); return () => callbacks.delete(callback); };
-  const pending = harness.window.__gamerTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, waitForResponse: true, responseTimeoutMs: 40, progressCallId: 'streaming-test' });
+  harness.window.__gptTranslatorDomTracker.subscribe = (callback) => { callbacks.add(callback); return () => callbacks.delete(callback); };
+  const pending = harness.window.__gptTranslatorDeliver({ prompt: 'Kérés', autoSubmit: true, waitForResponse: true, responseTimeoutMs: 40, progressCallId: 'streaming-test' });
   await harness.advance(40);
   const result = await pending;
   assert.equal(result.ok, false); assert.equal(result.responsePending, true);
   assert.equal(Boolean(result.assistantResponseText), false);
   await harness.advance(16000);
-  assert.equal(Boolean(harness.window.__gamerTranslatorAssistantResponseFollowUps['streaming-test-followup']), true);
+  assert.equal(Boolean(harness.window.__gptTranslatorAssistantResponseFollowUps['streaming-test-followup']), true);
   current = { ...partial, lastPending: false };
   for (const callback of [...callbacks]) callback();
-  const progress = JSON.parse(harness.window.__gamerTranslatorProgress['streaming-test-followup']);
+  const progress = JSON.parse(harness.window.__gptTranslatorProgress['streaming-test-followup']);
   assert.equal(progress.text, partial.lastText); assert.equal(progress.complete, true);
 });
 
@@ -921,9 +922,9 @@ test('Az igazolt élő attribútum nélküli UI-fejléc a saját stabil képkör
     assert.equal(harness.helpers.getMessageAuthorEvidence(image).role, 'user');
     assert.equal(harness.helpers.isFreshAssistantSnapshot(current, previous), true);
     userKeys.push(current.lastUserKey);
-    await harness.window.__gamerTranslatorDeliver({ prompt: 'Diagnosztikapróba', diagnosticCallId: `live-heading-${index}` });
+    await harness.window.__gptTranslatorDeliver({ prompt: 'Diagnosztikapróba', diagnosticCallId: `live-heading-${index}` });
     harness.helpers.reportAssistantSnapshotDiagnostic(current, previous);
-    const fields = harness.window.__gamerTranslatorDiagnostics[`live-heading-${index}`].at(-1).fields;
+    const fields = harness.window.__gptTranslatorDiagnostics[`live-heading-${index}`].at(-1).fields;
     assert.equal(fields.user_role_source, 'heading_role');
     assert.equal(fields.request_user_bound, true); assert.equal(fields.fresh, true);
     assert.equal(fields.user_role_candidates, index); assert.equal(fields.clickable_image_candidates, index - 1);
@@ -1008,9 +1009,9 @@ test('Kattintható kép explicit user szerep mellett a második kérés saját v
     assert.equal(current.userCount, 2, buttonKind);
     assert.equal(current.responseUserKey, current.lastUserKey, buttonKind);
     assert.equal(harness.helpers.isFreshAssistantSnapshot(current, previous), true, buttonKind);
-    await harness.window.__gamerTranslatorDeliver({ prompt: 'Diagnosztikapróba', diagnosticCallId: 'clickable-diagnostic' });
+    await harness.window.__gptTranslatorDeliver({ prompt: 'Diagnosztikapróba', diagnosticCallId: 'clickable-diagnostic' });
     harness.helpers.reportAssistantSnapshotDiagnostic(current, previous);
-    const fields = harness.window.__gamerTranslatorDiagnostics['clickable-diagnostic'].at(-1).fields;
+    const fields = harness.window.__gptTranslatorDiagnostics['clickable-diagnostic'].at(-1).fields;
     assert.equal(fields.user_role_candidates, 2); assert.equal(fields.clickable_image_candidates, 1);
   }
 });
@@ -1158,7 +1159,7 @@ test('Prompt előkészítése közben betöltött előzmény után az új submit
   harness.composer.addEventListener('input', () => { current = history; });
   let submitted = 0;
   form.requestSubmit = () => { submitted += 1; current = answer; harness.composer.value = ''; };
-  const result = await harness.window.__gamerTranslatorDeliver({ prompt: 'Új kérés', autoSubmit: true, waitForResponse: true, responseTimeoutMs: 40 });
+  const result = await harness.window.__gptTranslatorDeliver({ prompt: 'Új kérés', autoSubmit: true, waitForResponse: true, responseTimeoutMs: 40 });
   assert.equal(result.ok, true); assert.equal(result.assistantResponseText, answer.lastText);
   assert.equal(result.assistantResponseComplete, true); assert.equal(submitted, 1);
 });
@@ -1182,8 +1183,262 @@ test('Retry nem veheti fel baseline-nak az első kísérlet már elküldött use
     },
   } });
   harness.composer.addEventListener('input', () => { current = history; });
-  const pending = harness.window.__gamerTranslatorDeliver({ prompt: 'Új kérés', autoSubmit: true, waitForResponse: true, responseTimeoutMs: 40 });
+  const pending = harness.window.__gptTranslatorDeliver({ prompt: 'Új kérés', autoSubmit: true, waitForResponse: true, responseTimeoutMs: 40 });
   await harness.advance(40);
   const result = await pending;
   assert.equal(result.ok, true); assert.equal(result.assistantResponseText, answer.lastText);
+});
+
+function imageWatchdogHarness({ attach, submit, writePrompt: promptWriter } = {}) {
+  const users = []; const assistants = []; const files = [];
+  let preview = false; let input = null; let harness;
+  const snapshot = () => {
+    const selected = Array.from(input?.files || []).map((file) => `${file.name}:${file.size}:${file.type}:${file.lastModified}`);
+    return {
+      attachmentCount: preview ? 1 : 0, attachmentIndicatorKey: preview ? 'own-preview' : '',
+      hasAttachmentPreview: preview, fileInputCount: selected.length, selectedFileKeys: selected,
+      fileSelectionKey: selected.join('||'), hasPendingAttachmentWork: false,
+    };
+  };
+  const state = {
+    files, users, assistants,
+    set preview(value) { preview = value; }, get preview() { return preview; },
+    clearDraft() { preview = false; input.files = []; harness.composer.value = ''; },
+    addImageUser(id = `image-user-${users.length + 1}`) {
+      const user = appendMessage(harness, id, ''); user.setAttribute('data-message-author-role', 'user');
+      const image = user.appendChild(new FakeImage('img')); image.setAttribute('src', 'data:image/png;base64,aGVsbG8=');
+      user.querySelectorAll = (selector) => selector === 'img' ? [image] : [];
+      users.push(user); return user;
+    },
+    addAnswer(text = 'A képkérés fordítása.') {
+      const answer = appendMessage(harness, `image-answer-${assistants.length + 1}`, text);
+      answer.setAttribute('data-message-author-role', 'assistant'); assistants.push(answer); return answer;
+    },
+  };
+  const submitCurrentImage = async () => {
+    harness.helpers.captureResponseBaselineBeforeSubmit();
+    if (submit) return submit(state, harness);
+    state.clearDraft(); state.addImageUser();
+  };
+  harness = createHarness({ overrides: {
+    captureComposerAttachmentSnapshot: snapshot,
+    findUserMessageNodes: () => users, findAssistantMessageNodes: () => assistants,
+    attachViaFileInput: (_composer, file) => {
+      files.push(file); input.files = [file];
+      if (attach) return attach(state, file, files.length);
+      preview = true; return true;
+    },
+    attachViaDrop: () => false,
+    submitImageMessage: submitCurrentImage,
+    submitTextMessage: submitCurrentImage,
+    ...(promptWriter ? { writePrompt: (element, prompt) => promptWriter(element, prompt, harness) } : {}),
+  } });
+  input = harness.document.body.appendChild(new FakeInput('input')); input.type = 'file'; input.files = [];
+  Object.defineProperty(input, 'value', { get: () => '', set: (value) => { if (value === '') input.files = []; } });
+  harness.document.body.querySelectorAll = (selector) => selector === 'input[type="file"]' ? [input] : [];
+  return { harness, state, input };
+}
+
+test('Az elnyelt képbeillesztés teljesen újraindul ugyanazzal a File képpel új felvétel nélkül', async () => {
+  let submitted = 0;
+  const { harness, state } = imageWatchdogHarness({
+    attach: (imageState, _file, attempt) => { imageState.preview = attempt > 1; return true; },
+    submit: (imageState) => { submitted += 1; imageState.clearDraft(); imageState.addImageUser(); },
+  });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    pageReadyTimeoutMs: 40, diagnosticCallId: 'image-recovery' });
+  await harness.advance(200);
+  assert.equal((await pending).ok, true); assert.equal(submitted, 1);
+  assert.equal(state.files.length, 2); assert.equal(state.files[0], state.files[1]);
+  assert.equal(await state.files[1].text(), 'hello');
+  const events = harness.window.__gptTranslatorDiagnostics['image-recovery'];
+  assert.equal(events.filter((entry) => entry.event === 'image_pipeline_retry').length, 1);
+  assert.equal(events.some((entry) => entry.event === 'image_pipeline_confirmed' && entry.fields.reason === 'image_user_visible'), true);
+});
+
+test('A composer képet és szöveget eltüntető hibás submit nem igazol kézbesítést', async () => {
+  let submits = 0;
+  const { harness, state } = imageWatchdogHarness({ submit: (imageState) => {
+    submits += 1; imageState.clearDraft();
+    if (submits === 2) imageState.addImageUser();
+  } });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    pageReadyTimeoutMs: 40, diagnosticCallId: 'empty-submit' });
+  await harness.advance(200);
+  assert.equal((await pending).ok, true); assert.equal(submits, 2); assert.equal(state.files.length, 2);
+  assert.equal(harness.window.__gptTranslatorDiagnostics['empty-submit'].filter((entry) => entry.event === 'submission_confirmed').length, 1);
+});
+
+test('A késve megjelenő saját képkérés lezárja a watchdogot új feltöltés nélkül', async () => {
+  let submits = 0;
+  const { harness, state } = imageWatchdogHarness({ submit: (imageState, runtime) => {
+    submits += 1; imageState.clearDraft(); runtime.window.setTimeout(() => imageState.addImageUser(), 20);
+  } });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    pageReadyTimeoutMs: 40 });
+  await harness.advance(200);
+  assert.equal((await pending).ok, true); assert.equal(submits, 1); assert.equal(state.files.length, 1);
+});
+
+test('Látható képkérés után a lassú válaszra várás nem indít új feltöltést vagy új submitot', async () => {
+  let submits = 0;
+  const { harness, state } = imageWatchdogHarness({ submit: (imageState, runtime) => {
+    submits += 1; imageState.clearDraft(); imageState.addImageUser();
+    runtime.window.setTimeout(() => imageState.addAnswer('Későn elkészült saját fordítás.'), 120);
+  } });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    waitForResponse: true, responseTimeoutMs: 200, pageReadyTimeoutMs: 40 });
+  await harness.advance(240);
+  const result = await pending;
+  assert.equal(result.ok, true); assert.equal(result.assistantResponseText, 'Későn elkészült saját fordítás.');
+  assert.equal(submits, 1); assert.equal(state.files.length, 1);
+});
+
+test('Teljesen elnyelt küldés legfeljebb három teljes képes próbálkozást indít', async () => {
+  let submits = 0;
+  const { harness, state } = imageWatchdogHarness({ submit: (imageState) => { submits += 1; imageState.clearDraft(); } });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    pageReadyTimeoutMs: 40, diagnosticCallId: 'bounded-image' });
+  await harness.advance(300);
+  const result = await pending;
+  assert.equal(result.ok, false); assert.match(result.error, /három automatikus próbálkozás/);
+  assert.equal(submits, 3); assert.equal(state.files.length, 3);
+  assert.equal(harness.window.__gptTranslatorComposerAutoRecovery.suspendedCount, 0);
+});
+
+test('Kezdeti kézi szöveg és idegen csatolmány nem törölhető vagy küldhető az új képkéréssel', async () => {
+  for (const mode of ['text', 'attachment']) {
+    const { harness, state } = imageWatchdogHarness();
+    if (mode === 'text') harness.composer.value = 'Kézi piszkozat'; else state.preview = true;
+    const result = await harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true });
+    assert.equal(result.ok, false); assert.equal(state.files.length, 0);
+    assert.equal(mode === 'text' ? harness.composer.value === 'Kézi piszkozat' : state.preview, true);
+  }
+});
+
+test('Watchdog grace közbeni megszakítás megakadályoz minden későbbi új feltöltést', async () => {
+  let submits = 0;
+  const { harness, state } = imageWatchdogHarness({ submit: (imageState) => { submits += 1; imageState.clearDraft(); } });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    deliveryCallId: 'cancel-image-retry', pageReadyTimeoutMs: 400 });
+  await flush(); assert.equal(submits, 1);
+  assert.equal(harness.window.__gptTranslatorCancelDelivery('cancel-image-retry').active, true);
+  const result = await pending; await harness.advance(2000);
+  assert.equal(result.cancelled, true); assert.equal(submits, 1); assert.equal(state.files.length, 1);
+});
+
+test('Kép nélkül megjelent saját user-kör bizonytalan állapotában nem indul duplikáló retry', async () => {
+  let submits = 0;
+  const { harness, state } = imageWatchdogHarness({ submit: (imageState, runtime) => {
+    submits += 1; imageState.clearDraft(); imageState.users.push(appendMessage(runtime, 'text-user', 'Kérés kép nélkül'));
+  } });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    pageReadyTimeoutMs: 40, diagnosticCallId: 'uncertain-user' });
+  await harness.advance(200);
+  const result = await pending;
+  assert.equal(result.ok, false); assert.match(result.error, /duplikáció/);
+  assert.equal(submits, 1); assert.equal(state.files.length, 1);
+});
+
+test('A beragadt saját preview csak a saját Remove image gombjával törlődik új csatolás előtt', async () => {
+  let submits = 0; let removed = 0;
+  const { harness, state, input } = imageWatchdogHarness({ submit: (imageState) => {
+    submits += 1;
+    if (submits > 1) { imageState.clearDraft(); imageState.addImageUser(); }
+  } });
+  const attachment = harness.document.body.appendChild(new FakeElement('div'));
+  const image = attachment.appendChild(new FakeImage('img')); image.setAttribute('src', 'blob:owned-image');
+  const removeButton = attachment.appendChild(new FakeButton()); removeButton.type = 'button';
+  removeButton.setAttribute('aria-label', 'Remove image');
+  removeButton.click = () => { removed += 1; state.preview = false; input.files = []; };
+  attachment.querySelectorAll = (selector) => selector === 'button' ? [removeButton] : [];
+  harness.document.body.querySelectorAll = (selector) => selector === 'input[type="file"]' ? [input]
+    : selector === 'img[src^="blob:"]' && state.preview ? [image] : [];
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    pageReadyTimeoutMs: 40, diagnosticCallId: 'own-preview' });
+  await harness.advance(240);
+  assert.equal((await pending).ok, true); assert.equal(submits, 2); assert.equal(state.files.length, 2); assert.equal(removed, 1);
+  assert.equal(harness.window.__gptTranslatorDiagnostics['own-preview'].some((entry) => entry.event === 'image_pipeline_cleanup' && entry.fields.ok), true);
+});
+
+test('Bizonyított saját eltávolítógomb nélkül a beragadt preview megmarad és nincs új csatolás', async () => {
+  let submits = 0;
+  const { harness, state } = imageWatchdogHarness({ submit: () => { submits += 1; } });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    pageReadyTimeoutMs: 40, diagnosticCallId: 'unknown-preview' });
+  await harness.advance(200);
+  const result = await pending;
+  assert.equal(result.ok, false); assert.match(result.error, /biztonságos eltávolítása/);
+  assert.equal(submits, 1); assert.equal(state.files.length, 1); assert.equal(state.preview, true);
+});
+
+test('Kézi módosítás az elnyelt submit után megőrzi az új piszkozatot és leállítja a recoveryt', async () => {
+  let submits = 0;
+  const { harness, state } = imageWatchdogHarness({ submit: (imageState, runtime) => {
+    submits += 1; imageState.clearDraft();
+    runtime.composer.value = 'A felhasználó új kézi szövege';
+    runtime.document.dispatchEvent(new FakeEvent('input', { target: runtime.composer, isTrusted: true }));
+  } });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    pageReadyTimeoutMs: 40, diagnosticCallId: 'manual-image-draft' });
+  await harness.advance(200);
+  const result = await pending;
+  assert.equal(result.ok, false); assert.match(result.error, /kézzel módosítva/);
+  assert.equal(harness.composer.value, 'A felhasználó új kézi szövege');
+  assert.equal(submits, 1); assert.equal(state.files.length, 1);
+});
+
+test('A képes kéréshez kötött új asszisztensfolyamat kép-DOM késése mellett is leállítja a retryt', async () => {
+  let submits = 0;
+  const { harness, state } = imageWatchdogHarness({ submit: (imageState, runtime) => {
+    submits += 1; imageState.clearDraft();
+    imageState.users.push(appendMessage(runtime, 'accepted-user', ''));
+    imageState.addAnswer('Thinking');
+  } });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    pageReadyTimeoutMs: 40, diagnosticCallId: 'bound-image-generation' });
+  await harness.advance(200);
+  const result = await pending;
+  assert.equal(result.ok, true); assert.equal(submits, 1); assert.equal(state.files.length, 1);
+  assert.equal(harness.window.__gptTranslatorDiagnostics['bound-image-generation'].some((entry) => entry.event === 'image_pipeline_confirmed'
+    && entry.fields.reason === 'bound_assistant_started'), true);
+});
+
+test('Ismeretlen user DOM mellett az új válasz megállítja a retryt, de nem igazol kész fordítást', async () => {
+  let submits = 0;
+  const { harness, state } = imageWatchdogHarness({ submit: (imageState) => {
+    submits += 1; imageState.clearDraft(); imageState.addAnswer('Még nem köthető kéréshez.');
+  } });
+  const pending = harness.window.__gptTranslatorDeliver({ imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true,
+    waitForResponse: true, responseTimeoutMs: 100, pageReadyTimeoutMs: 40, progressCallId: 'uncertain-image-progress', diagnosticCallId: 'uncertain-image-answer' });
+  await harness.advance(240);
+  const result = await pending;
+  assert.equal(result.ok, false); assert.equal(result.responsePending, true); assert.equal(result.assistantResponseText, undefined);
+  assert.equal(submits, 1); assert.equal(state.files.length, 1);
+  const events = harness.window.__gptTranslatorDiagnostics['uncertain-image-answer'];
+  assert.equal(events.some((entry) => entry.event === 'image_pipeline_uncertain'), true);
+  assert.equal(events.some((entry) => entry.event === 'submission_confirmed'), false);
+});
+
+test('A saját promptírás trusted input eseménye nem számít kézi módosításnak a kép retry alatt', async () => {
+  let submits = 0; const prompts = [];
+  const { harness, state } = imageWatchdogHarness({
+    writePrompt: (element, prompt, runtime) => {
+      prompts.push(prompt); element.value = prompt;
+      // A Chromium document.execCommand('insertText') így jelzi a saját írást.
+      runtime.document.dispatchEvent(new FakeEvent('input', { target: element, isTrusted: true }));
+    },
+    submit: (imageState) => {
+      submits += 1; imageState.clearDraft();
+      if (submits > 1) { imageState.addImageUser(); imageState.addAnswer('A saját képprompt fordítása.'); }
+    },
+  });
+  const pending = harness.window.__gptTranslatorDeliver({ prompt: 'Fordítsd le a képen látható szöveget.',
+    imageDataUrl: 'data:image/png;base64,aGVsbG8=', autoSubmit: true, waitForResponse: true,
+    responseTimeoutMs: 100, pageReadyTimeoutMs: 40 });
+  await harness.advance(240);
+  const result = await pending;
+  assert.equal(result.ok, true); assert.equal(result.assistantResponseText, 'A saját képprompt fordítása.');
+  assert.deepEqual(prompts, ['Fordítsd le a képen látható szöveget.', 'Fordítsd le a képen látható szöveget.']);
+  assert.equal(submits, 2); assert.equal(state.files.length, 2);
 });

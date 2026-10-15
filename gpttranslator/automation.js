@@ -1,5 +1,5 @@
 (() => {
-  const AUTOMATION_SCRIPT_VERSION = "2026-10-03-2";
+  const AUTOMATION_SCRIPT_VERSION = "2026-10-15-gpttranslator-1";
   const TRUSTED_ORIGINS = new Set(["https://chatgpt.com", "https://chat.openai.com"]);
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
   let deliveryInProgress = false;
@@ -18,6 +18,9 @@
   const FRAME_INTERVAL_MS = 20;
   const SELF_HEAL_CHECK_LIMIT = 5;
   const SUBMISSION_RETRY_GUARD_MS = 2200;
+  const IMAGE_DELIVERY_MAX_ATTEMPTS = 3;
+  const IMAGE_SUBMISSION_CONFIRMATION_TIMEOUT_MS = 8000;
+  const IMAGE_DRAFT_CLEANUP_TIMEOUT_MS = 2500;
   const FRAME_PACER_BURST_MS = 3000;
   const ASSISTANT_RESPONSE_FOLLOW_UP_IDLE_MS = 15000;
   const ASSISTANT_RESPONSE_FOLLOW_UP_SETTLE_MS = 4000;
@@ -68,7 +71,7 @@
   let nextAssistantNodeId = 1;
 
   function ensureFramePacer() {
-    const existingPacer = window.__gamerTranslatorFramePacer;
+    const existingPacer = window.__gptTranslatorFramePacer;
 
     if (existingPacer && typeof existingPacer.start === "function") {
       existingPacer.start(FRAME_PACER_BURST_MS);
@@ -99,7 +102,7 @@
       }
 
       const pulseNode = document.createElement("div");
-      pulseNode.id = "__gamerTranslatorFramePacer";
+      pulseNode.id = "__gptTranslatorFramePacer";
       pulseNode.setAttribute("aria-hidden", "true");
       Object.assign(pulseNode.style, {
         position: "fixed",
@@ -176,7 +179,7 @@
     state.start = start;
     state.pulseFor = start;
     state.stop = stop;
-    window.__gamerTranslatorFramePacer = state;
+    window.__gptTranslatorFramePacer = state;
 
     document.addEventListener("visibilitychange", () => start(FRAME_PACER_BURST_MS), { passive: true });
     window.addEventListener("pageshow", () => start(FRAME_PACER_BURST_MS), { passive: true });
@@ -203,7 +206,7 @@
   }
 
   function ensureDomActivityTracker() {
-    const existingTracker = window.__gamerTranslatorDomTracker;
+    const existingTracker = window.__gptTranslatorDomTracker;
 
     if (existingTracker && typeof existingTracker.start === "function" && typeof existingTracker.waitForChange === "function") {
       existingTracker.start();
@@ -222,8 +225,8 @@
       }
 
       if (node instanceof Element) {
-        return node.id === "__gamerTranslatorFramePacer"
-          || Boolean(node.closest("#__gamerTranslatorFramePacer"));
+        return node.id === "__gptTranslatorFramePacer"
+          || Boolean(node.closest("#__gptTranslatorFramePacer"));
       }
 
       return isInternalTrackerNode(node.parentNode);
@@ -363,7 +366,7 @@
       }
     };
 
-    window.__gamerTranslatorDomTracker = tracker;
+    window.__gptTranslatorDomTracker = tracker;
     start();
     return tracker;
   }
@@ -377,10 +380,10 @@
       return;
     }
 
-    window.__gamerTranslatorProgress = window.__gamerTranslatorProgress || Object.create(null);
+    window.__gptTranslatorProgress = window.__gptTranslatorProgress || Object.create(null);
 
     let nextSequence = 1;
-    const previousEntry = window.__gamerTranslatorProgress[normalizedProgressCallId];
+    const previousEntry = window.__gptTranslatorProgress[normalizedProgressCallId];
 
     if (typeof previousEntry === "string" && previousEntry) {
       try {
@@ -391,15 +394,15 @@
       }
     }
 
-    window.__gamerTranslatorProgress[normalizedProgressCallId] = JSON.stringify({
+    window.__gptTranslatorProgress[normalizedProgressCallId] = JSON.stringify({
       ...progress,
       seq: nextSequence
     });
   }
 
   function ensureAssistantResponseFollowUps() {
-    window.__gamerTranslatorAssistantResponseFollowUps = window.__gamerTranslatorAssistantResponseFollowUps || Object.create(null);
-    return window.__gamerTranslatorAssistantResponseFollowUps;
+    window.__gptTranslatorAssistantResponseFollowUps = window.__gptTranslatorAssistantResponseFollowUps || Object.create(null);
+    return window.__gptTranslatorAssistantResponseFollowUps;
   }
 
   // Csak technikai állapot kerül a diagnosztikába, beszélgetés és képtartalom nem.
@@ -435,8 +438,8 @@
       else if (typeof value === "number" && Number.isFinite(value)) safeFields[key] = Math.max(0, Math.min(100000000, value));
       else if (typeof value === "string" && /^[a-z][a-z0-9_]{0,39}$/.test(value)) safeFields[key] = value;
     }
-    window.__gamerTranslatorDiagnostics = window.__gamerTranslatorDiagnostics || Object.create(null);
-    const buckets = window.__gamerTranslatorDiagnostics;
+    window.__gptTranslatorDiagnostics = window.__gptTranslatorDiagnostics || Object.create(null);
+    const buckets = window.__gptTranslatorDiagnostics;
     const entries = Array.isArray(buckets[normalizedCallId]) ? buckets[normalizedCallId] : [];
     const nextSequence = Number(entries[entries.length - 1]?.seq || 0) + 1;
     entries.push({ event, fields: safeFields, seq: nextSequence });
@@ -475,7 +478,7 @@
     if (options.emitDone !== false) {
       if (!latestText) {
         try {
-          const previousProgress = JSON.parse(window.__gamerTranslatorProgress?.[normalizedFollowUpProgressCallId] || "null");
+          const previousProgress = JSON.parse(window.__gptTranslatorProgress?.[normalizedFollowUpProgressCallId] || "null");
           if (previousProgress?.kind === "assistant_response") {
             latestText = String(previousProgress.text || "");
             latestComplete = previousProgress.complete === true;
@@ -492,11 +495,11 @@
     }
   }
 
-  window.__gamerTranslatorStopResponseFollowUp = stopAssistantResponseFollowUp;
+  window.__gptTranslatorStopResponseFollowUp = stopAssistantResponseFollowUp;
 
-  if (window.__gamerTranslatorDeliverVersion !== AUTOMATION_SCRIPT_VERSION) {
+  if (window.__gptTranslatorDeliverVersion !== AUTOMATION_SCRIPT_VERSION) {
     const previousAssistantResponseFollowUps = ensureAssistantResponseFollowUps();
-    const previousComposerAutoRecovery = window.__gamerTranslatorComposerAutoRecovery;
+    const previousComposerAutoRecovery = window.__gptTranslatorComposerAutoRecovery;
 
     for (const followUpProgressCallId of Object.keys(previousAssistantResponseFollowUps)) {
       stopAssistantResponseFollowUp(followUpProgressCallId, { emitDone: false });
@@ -512,15 +515,15 @@
       }
     }
 
-    window.__gamerTranslatorComposerAutoRecovery = null;
+    window.__gptTranslatorComposerAutoRecovery = null;
   }
 
   if (
-    typeof window.__gamerTranslatorDeliver === "function"
-    && window.__gamerTranslatorDeliverVersion === AUTOMATION_SCRIPT_VERSION
+    typeof window.__gptTranslatorDeliver === "function"
+    && window.__gptTranslatorDeliverVersion === AUTOMATION_SCRIPT_VERSION
   ) {
     try {
-      window.__gamerTranslatorDeliver({
+      window.__gptTranslatorDeliver({
         initializeComposerAutoRecovery: true,
         autoSubmit: false,
         copyResponseToClipboard: false,
@@ -534,8 +537,8 @@
     return;
   }
 
-  window.__gamerTranslatorIsDeliveryCancelled = (callId) => cancelledDeliveryIds.has(normalizeDeliveryCallId(callId));
-  window.__gamerTranslatorCancelDelivery = (callId) => {
+  window.__gptTranslatorIsDeliveryCancelled = (callId) => cancelledDeliveryIds.has(normalizeDeliveryCallId(callId));
+  window.__gptTranslatorCancelDelivery = (callId) => {
     const normalizedCallId = normalizeDeliveryCallId(callId);
     if (!normalizedCallId) return { ok: false, cancelled: false, active: false };
     cancelledDeliveryIds.add(normalizedCallId);
@@ -546,7 +549,7 @@
     return { ok: true, cancelled: true, active: wasActive };
   };
 
-  window.__gamerTranslatorDeliver = async function deliverPromptToChatGpt(payload) {
+  window.__gptTranslatorDeliver = async function deliverPromptToChatGpt(payload) {
     if (!isTrustedPage()) {
       return { ok: false, error: "Az oldal eredete nem engedélyezett." };
     }
@@ -590,6 +593,25 @@
     let deliveryStage = "initialization";
     let assistantSnapshotBeforeSend = null;
     let responseBaselineCaptured = false;
+    const usesImageDeliveryWatchdog = Boolean(payload.imageDataUrl && payload.autoSubmit);
+    let deliveryImageFile = null;
+    let ownedImageFileKey = "";
+    let imagePromptWritten = false;
+    let imageDraftTouchedByUser = false;
+    let imageOwnMutationDepth = 0;
+    let imageSubmissionConfirmed = false;
+    let imageSubmissionUncertain = false;
+    let imageAttemptInitialIndicators = new Set();
+    const ownedImageIndicators = new Set();
+    const imageDraftEvents = ["input", "change", "paste", "drop", "keydown", "pointerdown"];
+    const handleImageDraftInteraction = (event) => {
+      if (!usesImageDeliveryWatchdog || imageOwnMutationDepth > 0 || event.isTrusted !== true) return;
+      const composer = findComposer();
+      const scope = findComposerScope(composer);
+      if (event.target instanceof Node && scope instanceof Element && scope.contains(event.target)) {
+        imageDraftTouchedByUser = true;
+      }
+    };
     const reportDiagnostic = (event, fields = {}) => writeDiagnosticEntry(payload.diagnosticCallId, event, fields);
     const reportProgress = (progress) => {
       writeProgressEntry(payload.progressCallId, progress);
@@ -646,7 +668,7 @@
       }
       reportDiagnostic("delivery_started", { prompt_length: String(payload.prompt || "").length, auto_submit: payload.autoSubmit, copy_response: payload.copyResponseToClipboard });
 
-      assistantSnapshotBeforeSend = payload.waitForResponse
+      assistantSnapshotBeforeSend = payload.waitForResponse || usesImageDeliveryWatchdog
         ? captureAssistantSnapshot()
         : { count: 0, lastNodeId: "", lastText: "", lastPending: false };
 
@@ -669,36 +691,23 @@
         };
       }
 
-      if (payload.imageDataUrl) {
-        deliveryStage = "attachment";
-        activeComposer = await attachImage(activeComposer);
-        assertDeliveryActive();
-      }
-
-      if (payload.prompt) {
-        deliveryStage = "prompt";
-        activeComposer = await waitFor(() => findComposer(), payload.pageReadyTimeoutMs, "frissített beviteli mező");
-        assertDeliveryActive();
-        writePrompt(activeComposer, payload.prompt);
-        activeComposer = await waitForPromptApplied(
-          activeComposer,
-          payload.prompt,
-          Math.min(payload.pageReadyTimeoutMs, 1800)
-        );
-        assertDeliveryActive();
-        reportDiagnostic("prompt_verified", { prompt_length: payload.prompt.length });
-      }
-
-      if (payload.autoSubmit) {
-        deliveryStage = "submission";
-        reportDiagnostic("submission_started", { kind: payload.imageDataUrl ? "image" : "text" });
-        if (payload.imageDataUrl && !payload.prompt) {
-          await submitImageMessage(activeComposer);
-        } else {
-          await submitTextMessage(activeComposer);
+      if (usesImageDeliveryWatchdog) {
+        // Csak az üresen átvett composer tartozik ehhez a kéréshez.
+        // Egy kézi piszkozatot az újrapróbálás sem írhat felül.
+        const initialAttachment = captureComposerAttachmentSnapshot(activeComposer);
+        if (normalizePromptStructure(readComposerText(activeComposer)) || initialAttachment.hasAttachmentPreview
+          || initialAttachment.fileInputCount > 0 || initialAttachment.hasPendingAttachmentWork) {
+          throw new Error("A beviteli mezőben már van szöveg, csatolmány vagy folyamatban levő feltöltés. Töröld azt az új kép beillesztése előtt.");
         }
-        assertDeliveryActive();
-        reportDiagnostic("submission_confirmed");
+        deliveryImageFile = dataUrlToFile(payload.imageDataUrl, payload.imageFilename || "snip.png", payload.imageMimeType || "image/png");
+        ownedImageFileKey = describeSelectedFile(deliveryImageFile);
+        for (const eventName of imageDraftEvents) document.addEventListener(eventName, handleImageDraftInteraction, true);
+        activeComposer = await deliverImageWithRecovery(activeComposer);
+        if (imageSubmissionUncertain && !imageSubmissionConfirmed && !payload.waitForResponse) {
+          throw new Error("A beküldés után új válasz jelent meg, de a képkérés nem igazolható. Ellenőrizd a beszélgetést az oldalon.");
+        }
+      } else {
+        activeComposer = await prepareAndSubmitPayload(activeComposer);
       }
 
       let assistantResponseText = "";
@@ -732,14 +741,242 @@
         error: error instanceof Error ? error.message : String(error)
       };
     } finally {
+      for (const eventName of imageDraftEvents) document.removeEventListener(eventName, handleImageDraftInteraction, true);
       operation.release();
+    }
+
+    async function prepareAndSubmitPayload(composer) {
+      if (usesImageDeliveryWatchdog) {
+        if (shouldStopImageRecovery()) return findComposer() || composer;
+        assertImageDraftOwned(findComposer() || composer);
+      }
+      if (payload.imageDataUrl) {
+        deliveryStage = "attachment";
+        composer = await attachImage(composer);
+        assertDeliveryActive();
+      }
+      if (payload.prompt) {
+        if (usesImageDeliveryWatchdog) {
+          if (shouldStopImageRecovery()) return findComposer() || composer;
+          assertImageDraftOwned(findComposer() || composer);
+        }
+        deliveryStage = "prompt";
+        composer = await waitFor(() => findComposer(), payload.pageReadyTimeoutMs, "frissített beviteli mező");
+        assertDeliveryActive();
+        imagePromptWritten = usesImageDeliveryWatchdog;
+        writeOwnedImagePrompt(composer, payload.prompt);
+        composer = await waitForPromptApplied(composer, payload.prompt, Math.min(payload.pageReadyTimeoutMs, 1800));
+        assertDeliveryActive();
+        reportDiagnostic("prompt_verified", { prompt_length: payload.prompt.length });
+      }
+      if (payload.autoSubmit) {
+        if (usesImageDeliveryWatchdog) {
+          if (shouldStopImageRecovery()) return findComposer() || composer;
+          assertImageDraftOwned(findComposer() || composer);
+        }
+        deliveryStage = "submission";
+        reportDiagnostic("submission_started", { kind: payload.imageDataUrl ? "image" : "text" });
+        if (payload.imageDataUrl && !payload.prompt) await submitImageMessage(composer);
+        else await submitTextMessage(composer);
+        assertDeliveryActive();
+        if (!usesImageDeliveryWatchdog) reportDiagnostic("submission_confirmed");
+      }
+      return composer;
+    }
+
+    async function deliverImageWithRecovery(composer) {
+      for (let attempt = 1; attempt <= IMAGE_DELIVERY_MAX_ATTEMPTS; attempt += 1) {
+        assertDeliveryActive();
+        if (shouldStopImageRecovery()) return findComposer() || composer;
+        imageAttemptInitialIndicators = new Set(collectAttachmentIndicators(findComposerScope(findComposer() || composer)));
+        ownedImageIndicators.clear();
+        reportDiagnostic("image_pipeline_attempt", { attempt });
+        let failure = null;
+        try {
+          composer = await prepareAndSubmitPayload(findComposer() || composer);
+        } catch (error) {
+          assertDeliveryActive();
+          failure = error;
+        }
+        rememberOwnedImageIndicators(findComposer() || composer);
+        // A composer kiürülése vagy a Send letiltása önmagában nem kézbesítés.
+        // A késve befutó user-körnek újraküldés előtt marad ideje megjelenni.
+        if (responseBaselineCaptured && await waitForImageSubmissionConfirmation()) return findComposer() || composer;
+        if (shouldStopImageRecovery()) return findComposer() || composer;
+        if (attempt === IMAGE_DELIVERY_MAX_ATTEMPTS) {
+          throw failure || new Error("A kép nem jelent meg a beszélgetésben három automatikus próbálkozás után sem. Ellenőrizd a beszélgetést és a csatolmányt az oldalon.");
+        }
+        deliveryStage = "image_recovery";
+        if (await resetOwnedImageDraft(findComposer() || composer)) return findComposer() || composer;
+        reportDiagnostic("image_pipeline_retry", { attempt: attempt + 1, reason: "no_confirmed_image_turn" });
+      }
+      return composer;
+    }
+
+    function hasConfirmedImageSubmission() {
+      if (imageSubmissionConfirmed) return true;
+      if (!usesImageDeliveryWatchdog || !responseBaselineCaptured) return false;
+      const current = captureAssistantSnapshot();
+      bindResponseUserTurn(assistantSnapshotBeforeSend, current);
+      const requestUserKey = assistantSnapshotBeforeSend.requestUserKey;
+      if (!requestUserKey) return false;
+      const requestUser = findUserMessageNodes().find((node) => getMessageKey(node) === requestUserKey);
+      const hasImage = requestUser && hasUserMessageImage(requestUser);
+      const assistantIdentityNew = Boolean(current.lastStableId || current.lastNodeId)
+        && (current.lastStableId
+          ? !(assistantSnapshotBeforeSend.assistantStableIds || []).includes(current.lastStableId)
+          : !(assistantSnapshotBeforeSend.assistantNodeIds || []).includes(current.lastNodeId));
+      const boundAssistantStarted = current.responseUserKey === requestUserKey && assistantIdentityNew
+        && (current.lastPending || Boolean(current.lastText));
+      if (!hasImage && !boundAssistantStarted) return false;
+      imageSubmissionConfirmed = true;
+      clearSubmissionRetryGuard();
+      reportDiagnostic("image_pipeline_confirmed", { reason: hasImage ? "image_user_visible" : "bound_assistant_started" });
+      reportDiagnostic("submission_confirmed");
+      return true;
+    }
+
+    function shouldStopImageRecovery() {
+      if (hasConfirmedImageSubmission()) return true;
+      if (imageSubmissionUncertain) return true;
+      if (!usesImageDeliveryWatchdog || !responseBaselineCaptured) return false;
+      const current = captureAssistantSnapshot();
+      const assistantIdentityNew = Boolean(current.lastStableId || current.lastNodeId)
+        && (current.lastStableId
+          ? !(assistantSnapshotBeforeSend.assistantStableIds || []).includes(current.lastStableId)
+          : !(assistantSnapshotBeforeSend.assistantNodeIds || []).includes(current.lastNodeId));
+      // Egy új, de még userhez nem köthető válasz már fogadott kérés jele
+      // lehet. Ez leállítja a retryt, de sikeres kézbesítést nem bizonyít.
+      if (!assistantIdentityNew || (!current.lastPending && !current.lastText)) return false;
+      imageSubmissionUncertain = true;
+      clearSubmissionRetryGuard();
+      reportDiagnostic("image_pipeline_uncertain", { reason: "unbound_assistant_started" });
+      return true;
+    }
+
+    async function waitForImageSubmissionConfirmation() {
+      const timeoutMs = Math.min(payload.pageReadyTimeoutMs, IMAGE_SUBMISSION_CONFIRMATION_TIMEOUT_MS);
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < timeoutMs) {
+        assertDeliveryActive();
+        if (shouldStopImageRecovery()) return true;
+        await waitForNextStateTurn(timeoutMs - (Date.now() - startedAt));
+      }
+      return shouldStopImageRecovery();
+    }
+
+    function rememberOwnedImageIndicators(composer) {
+      if (!usesImageDeliveryWatchdog) return;
+      for (const indicator of collectAttachmentIndicators(findComposerScope(composer))) {
+        if (!imageAttemptInitialIndicators.has(indicator)) ownedImageIndicators.add(indicator);
+      }
+    }
+
+    function writeOwnedImagePrompt(composer, prompt) {
+      // Az execCommand saját input eseménye Chromiumban isTrusted=true lehet.
+      // Csak a szinkron írás idejére nyomjuk el a kézi módosítás jelzését.
+      imageOwnMutationDepth += 1;
+      try {
+        writePrompt(composer, prompt);
+      } finally {
+        imageOwnMutationDepth -= 1;
+      }
+    }
+
+    function assertImageDraftOwned(composer) {
+      assertDeliveryActive();
+      if (imageDraftTouchedByUser) {
+        reportDiagnostic("image_recovery_blocked", { reason: "manual_draft_changed" });
+        throw new Error("A képküldés közben a beviteli mező kézzel módosítva lett. Az automatikus újrapróbálás leállt.");
+      }
+      if (responseBaselineCaptured) {
+        // Az új user-kör már fogadott kérés lehet akkor is, ha a kép DOM-ja késik.
+        // Ilyenkor nem törlünk és nem hozunk létre második felhasználói kört.
+        bindResponseUserTurn(assistantSnapshotBeforeSend, captureAssistantSnapshot());
+        if (assistantSnapshotBeforeSend.requestUserKey) {
+          reportDiagnostic("image_recovery_blocked", { reason: "user_turn_unconfirmed_image" });
+          throw new Error("A kérés már megjelent a beszélgetésben, de a kép még nem igazolható. Az újraküldés a duplikáció elkerülése miatt leállt.");
+        }
+      }
+      const snapshot = captureComposerAttachmentSnapshot(composer);
+      if ((snapshot.selectedFileKeys || []).some((key) => key !== ownedImageFileKey)
+        || (snapshot.fileInputCount > 0 && !(snapshot.selectedFileKeys || []).length)
+        || (normalizePromptStructure(readComposerText(composer)) && !imagePromptWritten)) {
+        reportDiagnostic("image_recovery_blocked", { reason: "foreign_draft_payload" });
+        throw new Error("A beviteli mező tartalma már nem az aktuális képkéréshez tartozik. Az automatikus újrapróbálás leállt.");
+      }
+      return snapshot;
+    }
+
+    function findOwnedImageRemoveButtons(composer) {
+      const scope = findComposerScope(composer);
+      const buttons = new Set();
+      for (const indicator of ownedImageIndicators) {
+        if (!(indicator instanceof HTMLElement) || !indicator.isConnected || !scope?.contains(indicator)) continue;
+        for (let root = indicator; root instanceof HTMLElement && root !== scope; root = root.parentElement) {
+          if (root.contains(composer)) break;
+          const candidates = Array.from(root.querySelectorAll("button")).filter((button) => (
+            button instanceof HTMLButtonElement && !button.disabled && isDomAccessibleElement(button)
+            && /(?:remove|delete|cancel)\s+(?:image|file|attachment|upload)|(?:image|file|attachment|upload)\s+(?:remove|delete)|(?:kép|fájl|csatolmány|feltöltés).*?(?:eltávol|törl)|(?:eltávol|törl).*?(?:kép|fájl|csatolmány|feltöltés)/i.test(readButtonLabel(button))
+          ));
+          if (candidates.length === 1) {
+            buttons.add(candidates[0]);
+            break;
+          }
+        }
+      }
+      return [...buttons];
+    }
+
+    async function resetOwnedImageDraft(composer) {
+      if (shouldStopImageRecovery()) return true;
+      let snapshot = assertImageDraftOwned(composer);
+      rememberOwnedImageIndicators(composer);
+      if (snapshot.hasAttachmentPreview || snapshot.hasPendingAttachmentWork) {
+        const removeButtons = findOwnedImageRemoveButtons(composer);
+        if (!removeButtons.length) {
+          reportDiagnostic("image_recovery_blocked", { reason: "attachment_remove_unavailable" });
+          throw new Error("A beragadt saját képcsatolmány biztonságos eltávolítása nem érhető el. Ellenőrizd a csatolmányt az oldalon.");
+        }
+        for (const button of removeButtons) {
+          if (shouldStopImageRecovery()) return true;
+          assertImageDraftOwned(findComposer() || composer);
+          // Nem a küldési click-szekvencia: a törlés nem rögzíthet submit baseline-t.
+          button.click();
+          assertDeliveryActive();
+        }
+      }
+      const startedAt = Date.now();
+      const timeoutMs = Math.min(payload.pageReadyTimeoutMs, IMAGE_DRAFT_CLEANUP_TIMEOUT_MS);
+      while (true) {
+        if (shouldStopImageRecovery()) return true;
+        composer = findComposer() || composer;
+        snapshot = assertImageDraftOwned(composer);
+        if (!snapshot.hasAttachmentPreview && !snapshot.hasPendingAttachmentWork) break;
+        if (Date.now() - startedAt >= timeoutMs) {
+          reportDiagnostic("image_recovery_blocked", { reason: "attachment_cleanup_timeout" });
+          throw new Error("A beragadt képcsatolmány eltávolítását a ChatGPT nem igazolta vissza. Az automatikus újrapróbálás leállt.");
+        }
+        await waitForNextStateTurn(timeoutMs - (Date.now() - startedAt));
+      }
+      clearUnconfirmedImageFileSelection(composer, ownedImageFileKey);
+      if (imagePromptWritten && normalizePromptStructure(readComposerText(composer))) writeOwnedImagePrompt(composer, "");
+      const cleared = captureComposerAttachmentSnapshot(findComposer() || composer);
+      if (cleared.fileInputCount > 0 || normalizePromptStructure(readComposerText(findComposer() || composer))) {
+        reportDiagnostic("image_recovery_blocked", { reason: "draft_cleanup_incomplete" });
+        throw new Error("A korábbi képkérés előkészítése nem törölhető biztonságosan. Az automatikus újrapróbálás leállt.");
+      }
+      imagePromptWritten = false;
+      clearSubmissionRetryGuard();
+      reportDiagnostic("image_pipeline_cleanup", { ok: true });
+      return false;
     }
 
     async function attachImage(composerCandidate) {
       let composer = composerCandidate ?? await waitFor(() => findComposer(), payload.pageReadyTimeoutMs, "beviteli mező képbeillesztéshez");
       assertDeliveryActive();
       const imageUploadTimeoutMs = getImageUploadTimeoutMs();
-      const file = dataUrlToFile(payload.imageDataUrl, payload.imageFilename || "snip.png", payload.imageMimeType || "image/png");
+      const file = deliveryImageFile || dataUrlToFile(payload.imageDataUrl, payload.imageFilename || "snip.png", payload.imageMimeType || "image/png");
       const expectedFileKey = describeSelectedFile(file);
       const beforeSnapshot = captureComposerAttachmentSnapshot(composer);
       reportDiagnostic("attachment_started", { image_bytes: file.size, timeout_ms: imageUploadTimeoutMs });
@@ -754,6 +991,10 @@
       for (let attempt = 0; attempt < methods.length; attempt += 1) {
         assertDeliveryActive();
         composer = findComposer() || composer;
+        if (usesImageDeliveryWatchdog) {
+          if (shouldStopImageRecovery()) return composer;
+          assertImageDraftOwned(composer);
+        }
         const method = methods[attempt];
         const started = method === "input" ? attachViaFileInput(composer, file) : attachViaDrop(composer, file);
         reportDiagnostic("attachment_attempt", { method, attempt: attempt + 1, ok: started });
@@ -1443,7 +1684,7 @@
     }
 
     function ensureSubmissionRetryGuard() {
-      const existingGuard = window.__gamerTranslatorSubmissionRetryGuard;
+      const existingGuard = window.__gptTranslatorSubmissionRetryGuard;
 
       if (
         existingGuard
@@ -1500,7 +1741,7 @@
         }
       };
 
-      window.__gamerTranslatorSubmissionRetryGuard = guardState;
+      window.__gptTranslatorSubmissionRetryGuard = guardState;
       return guardState;
     }
 
@@ -1540,6 +1781,7 @@
 
       while (Date.now() - startedAt < timeoutMs) {
         const liveComposer = findComposer() || composer;
+        if (usesImageDeliveryWatchdog && shouldStopImageRecovery()) return liveComposer;
 
         if (isExpectedAttachmentReadySnapshot(observedSnapshot, beforeSnapshot, expectedFileKey)) {
           return liveComposer;
@@ -3015,7 +3257,7 @@
     }
 
     function ensureComposerAutoRecoveryWatcher() {
-      const existingWatcher = window.__gamerTranslatorComposerAutoRecovery;
+      const existingWatcher = window.__gptTranslatorComposerAutoRecovery;
 
       if (
         existingWatcher
@@ -3206,7 +3448,7 @@
         watcherState.lastAttemptKey = attemptKey;
 
         try {
-          await window.__gamerTranslatorDeliver({
+          await window.__gptTranslatorDeliver({
             repairExistingComposerPayload: true,
             autoSubmit: true,
             copyResponseToClipboard: false,
@@ -3280,7 +3522,7 @@
         document.removeEventListener("keydown", handleSubmitIntentKeyDown, true);
       };
 
-      window.__gamerTranslatorComposerAutoRecovery = watcherState;
+      window.__gptTranslatorComposerAutoRecovery = watcherState;
       watcherState.requestEvaluation();
       return watcherState;
     }
@@ -3328,6 +3570,11 @@
       let liveComposer = findComposer() || composer;
       let afterState = captureComposerSubmitState(liveComposer);
 
+      if (usesImageDeliveryWatchdog) {
+        if (shouldStopImageRecovery()) return;
+        assertImageDraftOwned(liveComposer);
+      }
+
       if (hasConfirmedSubmissionStart(beforeState, afterState)) {
         clearSubmissionRetryGuard();
         return;
@@ -3340,6 +3587,10 @@
 
       for (let checkIndex = 0; checkIndex < SELF_HEAL_CHECK_LIMIT; checkIndex += 1) {
         assertDeliveryActive();
+        if (usesImageDeliveryWatchdog) {
+          if (shouldStopImageRecovery()) return;
+          assertImageDraftOwned(liveComposer);
+        }
         const attempt = attempts[checkIndex % attempts.length];
 
         if (!hasComposerPayloadState(afterState)) {
@@ -3381,7 +3632,7 @@
 
     function captureResponseBaselineBeforeSubmit() {
       assertDeliveryActive();
-      if (!payload.waitForResponse || responseBaselineCaptured) return;
+      if ((!payload.waitForResponse && !usesImageDeliveryWatchdog) || responseBaselineCaptured) return;
       // A composer és a feltöltés várakozása közben érkező előzmény nem új kérés.
       // Retry során viszont már az első próbálkozás userét kell megőriznünk.
       assistantSnapshotBeforeSend = captureAssistantSnapshot();
@@ -3499,8 +3750,8 @@
     }
   };
 
-  window.__gamerTranslatorDeliverVersion = AUTOMATION_SCRIPT_VERSION;
-  window.__gamerTranslatorDeliver({
+  window.__gptTranslatorDeliverVersion = AUTOMATION_SCRIPT_VERSION;
+  window.__gptTranslatorDeliver({
     initializeComposerAutoRecovery: true,
     autoSubmit: false,
     copyResponseToClipboard: false,

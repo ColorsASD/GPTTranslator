@@ -13,8 +13,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-from gamer_translator import main_window as module
-from gamer_translator.main_window import MainWindow
+from gpttranslator import main_window as module
+from gpttranslator.main_window import MainWindow
 
 
 class BackgroundTaskTests(unittest.TestCase):

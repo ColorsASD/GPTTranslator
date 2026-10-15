@@ -16,9 +16,9 @@ from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
 from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
 from PySide6.QtWebEngineCore import QWebEngineProfile, QWebEngineScript, QWebEngineSettings
 
-from gamer_translator import main_window as module
-from gamer_translator.main_window import MainWindow, TranslationOverlay
-from gamer_translator.settings_store import SettingsStore
+from gpttranslator import main_window as module
+from gpttranslator.main_window import MainWindow, TranslationOverlay
+from gpttranslator.settings_store import SettingsStore
 
 
 class NativeWindowTests(unittest.TestCase):
